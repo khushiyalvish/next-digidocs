@@ -1,0 +1,107 @@
+/* Suite kit v7: copied from OnePortal src/app/globals.css. Change it in the hub first, then copy it here. */
+@import "tailwindcss";
+
+/*
+ * Design tokens. Their values come from the active theme (src/themes/<key>.ts), which the root
+ * layout puts on <html> as --theme-* variables. Components use only these names — never raw
+ * palette classes such as zinc-900 — so every theme restyles every page.
+ *
+ *   Surfaces  bg-canvas  bg-surface  bg-subtle
+ *   Lines     border-line  border-line-soft  border-line-strong  (also divide-*, ring-*)
+ *   Text      text-ink  text-ink-soft  text-muted  text-faint
+ *   Actions   bg-primary  hover:bg-primary-hover  text-on-primary  ring-accent  border-accent
+ *             bg-mark  text-on-mark
+ *   Top bar   bg-header  text-header-ink  text-header-muted  bg-header-hover  border-header-line
+ *   Charts    bg-chart-1  stroke-chart-2  fill-chart-3/10   (series colours, in order)
+ *   Meaning   text-success  bg-success-soft  border-success-line  (same for warning, danger)
+ *   Shape     rounded-button  rounded-field  rounded-card
+ *   Pattern   pattern-grid   (faint squares in the current text colour, for hero panels)
+ *
+ * Opacity modifiers work as usual: bg-surface/90, ring-accent/25.
+ */
+@theme inline {
+  --font-sans: var(--theme-font-sans);
+  --font-mono: var(--font-geist-mono), ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  --radius-button: var(--theme-radius-button);
+  --radius-field: var(--theme-radius-field);
+  --radius-card: var(--theme-radius-card);
+
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-subtle: var(--theme-subtle);
+  --color-line: var(--theme-line);
+  --color-line-soft: var(--theme-line-soft);
+  --color-line-strong: var(--theme-line-strong);
+  --color-ink: var(--theme-ink);
+  --color-ink-soft: var(--theme-ink-soft);
+  --color-muted: var(--theme-muted);
+  --color-faint: var(--theme-faint);
+  --color-primary: var(--theme-primary);
+  --color-primary-hover: var(--theme-primary-hover);
+  --color-on-primary: var(--theme-on-primary);
+  --color-accent: var(--theme-accent);
+  --color-mark: var(--theme-mark);
+  --color-on-mark: var(--theme-on-mark);
+  --color-header: var(--theme-header);
+  --color-header-ink: var(--theme-header-ink);
+  --color-header-muted: var(--theme-header-muted);
+  --color-header-hover: var(--theme-header-hover);
+  --color-header-line: var(--theme-header-line);
+  --color-chart-1: var(--theme-chart1);
+  --color-chart-2: var(--theme-chart2);
+  --color-chart-3: var(--theme-chart3);
+  --color-success: var(--theme-success);
+  --color-success-soft: var(--theme-success-soft);
+  --color-success-line: var(--theme-success-line);
+  --color-warning: var(--theme-warning);
+  --color-warning-soft: var(--theme-warning-soft);
+  --color-warning-line: var(--theme-warning-line);
+  --color-danger: var(--theme-danger);
+  --color-danger-soft: var(--theme-danger-soft);
+  --color-danger-line: var(--theme-danger-line);
+}
+
+@layer base {
+  /*
+   * The suite's size, in one place. Every size in the kit is in rem, so this scales text,
+   * controls and spacing together: 16px on phones, 17px from `sm`, 18px from `xl`. A percentage,
+   * so a person's own browser font size still applies. Never use px for a font size.
+   */
+  html {
+    font-size: 100%;
+  }
+  @media (width >= 40rem) {
+    html {
+      font-size: 106.25%;
+    }
+  }
+  @media (width >= 80rem) {
+    html {
+      font-size: 112.5%;
+    }
+  }
+
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-feature-settings: "cv11", "ss01";
+    /* A soft wash of the theme's own colours behind every page. */
+    background-image:
+      radial-gradient(60rem 28rem at 100% -8rem, color-mix(in oklab, var(--theme-accent) 10%, transparent), transparent 70%),
+      radial-gradient(48rem 26rem at -8rem -4rem, color-mix(in oklab, var(--theme-primary) 7%, transparent), transparent 70%);
+    background-repeat: no-repeat;
+  }
+
+  ::selection {
+    @apply bg-primary text-on-primary;
+  }
+}
+
+/* Faint squares in the current text colour, fading out towards the bottom left. Decoration for hero panels. */
+@utility pattern-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, currentColor 9%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, currentColor 9%, transparent) 1px, transparent 1px);
+  background-size: 2.5rem 2.5rem;
+  mask-image: radial-gradient(ellipse 80% 90% at 100% 0%, black, transparent 75%);
+}

@@ -1,0 +1,11 @@
+{
+  "users": [
+    { "id": "809902e5-a723-4de3-9102-96b1acd01c61", "email": "digidocs.admin@oneportal.test", "fullName": "Ada LFZ Admin", "role": "lfz_admin", "organisationShortCode": null },
+    { "id": "d85a6f8d-c394-4dd9-95d7-a094200d026e", "email": "digidocs.enterprise1@oneportal.test", "fullName": "Emeka Enterprise Lekki Port", "role": "enterprise", "organisationShortCode": "LPLELTD" },
+    { "id": "87886e55-e931-4a33-9629-0f5458c56403", "email": "digidocs.enterprise2@oneportal.test", "fullName": "Efe Enterprise Insignia", "role": "enterprise", "organisationShortCode": "INS" },
+    { "id": "6aa3f158-9faf-48ac-9087-527f28a0749a", "email": "digidocs.nepza@oneportal.test", "fullName": "Ngozi NEPZA", "role": "nepza", "organisationShortCode": null },
+    { "id": "e31dfd71-410b-40e7-9e09-49740da0a57c", "email": "digidocs.nis@oneportal.test", "fullName": "Nnamdi NIS", "role": "nis", "organisationShortCode": null },
+    { "id": "cf2f0806-a480-4981-a038-548a75c8ba58", "email": "digidocs.account@oneportal.test", "fullName": "Amaka Account", "role": "account", "organisationShortCode": null },
+    { "id": "b43ead2a-49ba-4135-93c5-2050dadb960b", "email": "digidocs.waiting@oneportal.test", "fullName": "Wale Waiting", "role": null, "organisationShortCode": null }
+  ]
+}
