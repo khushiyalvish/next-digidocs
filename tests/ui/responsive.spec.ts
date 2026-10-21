@@ -16,7 +16,8 @@ const PHONE_MAX_WIDTH = 639; // below Tailwind's `sm`
 // Every page of DigiDocs. Add each new page here.
 const SIGNED_OUT_PAGES = ["/sso/error"];
 // The test person is an LFZ Admin; Enterprise-only pages (/imports/new, /exports/new) and
-// Account-only reports need a test person with that role.
+// Account-only reports need a test person with that role. A record's pages (/imports/<id>,
+// /exports/<id> and their /edit) need a record: none can be created before Add Import / Add Export.
 const SIGNED_IN_PAGES = [
   "/",
   "/reports",

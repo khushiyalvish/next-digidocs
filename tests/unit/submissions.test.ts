@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROLE_KEYS, type RoleKey } from "@/features/access/roles";
 import { DASHBOARD_CARDS } from "@/features/dashboard/steps";
-import { listFilterSchema } from "@/features/workflow/list";
+import type { Member } from "@/features/auth/guards";
+import { rowActions, statusesAllowing } from "@/features/workflow/actions";
+import { listFilterSchema, listScope } from "@/features/workflow/list";
 import { listableStatuses, STATUS_KEYS, VISIBLE_STATUSES, type StatusKey } from "@/features/workflow/statuses";
 
 /* Pins the workflow statuses (features/workflow/statuses.ts) and the import/export list filters. */
@@ -78,10 +80,11 @@ describe("workflow statuses", () => {
     expect(listableStatuses("nis", {})).toEqual([]);
   });
 
-  it("give every dashboard card statuses an LFZ Admin sees", () => {
+  it("give every dashboard card statuses that each of its roles sees", () => {
     for (const card of DASHBOARD_CARDS) {
       expect(card.statuses.length, card.key).toBeGreaterThan(0);
-      for (const status of card.statuses) expect(VISIBLE_STATUSES.lfz_admin, `${card.key} → ${status}`).toContain(status);
+      for (const role of card.roles)
+        for (const status of card.statuses) expect(VISIBLE_STATUSES[role], `${card.key} → ${role} → ${status}`).toContain(status);
     }
   });
 });
@@ -98,5 +101,93 @@ describe("import and export list filters", () => {
       type: id.toLowerCase(),
       page: 2,
     });
+  });
+});
+
+describe("list and dashboard scope", () => {
+  const member = (role: RoleKey, organisationId: string | null = null): Member => ({
+    id: "u1",
+    sessionId: "s1",
+    email: "person@example.com",
+    fullName: "A Person",
+    role,
+    organisationId,
+    organisationName: null,
+  });
+
+  it("holds an Enterprise user to their own organisation, whatever the enterprise filter says", () => {
+    const scope = listScope(member("enterprise", "org-a"), { enterprise: "org-b", page: 1 });
+    expect(scope.organisationId).toBe("org-a");
+    expect(scope.nothing).toBe(false);
+  });
+
+  it("gives an Enterprise user without an organisation nothing", () => {
+    expect(listScope(member("enterprise"), { page: 1 }).nothing).toBe(true);
+  });
+
+  it("lets an LFZ Admin filter by enterprise, or see all", () => {
+    expect(listScope(member("lfz_admin"), { enterprise: "org-b", page: 1 }).organisationId).toBe("org-b");
+    expect(listScope(member("lfz_admin"), { page: 1 }).organisationId).toBeNull();
+  });
+});
+
+describe("row actions (old ListImpExp / ListExp, the Action column)", () => {
+  // The old views' rules, written with the old status ids, per kind and role.
+  const OLD: Record<"import" | "export", Partial<Record<RoleKey, (id: number) => string[]>>> = {
+    import: {
+      enterprise: (id) => (id === 12 ? ["edit", "view", "delete"] : [2, 6].includes(id) ? ["edit", "delete"] : [3, 4, 5, 7, 8, 9, 10, 11, 13].includes(id) ? ["view"] : []),
+      lfz_admin: (id) => ([3, 4, 5, 6, 7, 8, 9, 10, 11, 13].includes(id) ? ["view"] : []),
+      nepza: (id) => ([5, 7, 8, 9, 10, 13].includes(id) ? ["view"] : []),
+      account: (id) => ([8, 9, 10].includes(id) ? ["view"] : []),
+    },
+    export: {
+      enterprise: (id) => ([2, 6].includes(id) ? ["edit", "delete"] : [3, 4, 5, 7, 8, 9, 10, 11].includes(id) ? ["view"] : []),
+      lfz_admin: (id) => ([3, 4, 5, 6, 7, 8, 9, 10, 11].includes(id) ? ["view"] : []),
+      nepza: (id) => ([5, 7, 8, 11].includes(id) ? ["view"] : []),
+    },
+  };
+
+  it("offer what the old lists offered, for every kind, role and status", () => {
+    for (const kind of ["import", "export"] as const) {
+      for (const role of ROLE_KEYS) {
+        for (const status of STATUS_KEYS) {
+          const old = OLD[kind][role];
+          const expected = old ? [...new Set(OLD_IDS[status].flatMap(old))].sort() : [];
+          expect([...rowActions(kind, role, status)].sort(), `${kind} ${role} ${status}`).toEqual(expected);
+        }
+      }
+    }
+  });
+
+  it("let only an Enterprise user edit or delete", () => {
+    for (const kind of ["import", "export"] as const) {
+      for (const role of ROLE_KEYS.filter((each) => each !== "enterprise")) {
+        expect(statusesAllowing(kind, role, "edit"), `${kind} ${role}`).toEqual([]);
+        expect(statusesAllowing(kind, role, "delete"), `${kind} ${role}`).toEqual([]);
+      }
+    }
+    expect(statusesAllowing("import", "enterprise", "delete").sort()).toEqual(["draft", "enterprise_submitted", "lfz_rejected"]);
+    expect(statusesAllowing("export", "enterprise", "delete").sort()).toEqual(["draft", "lfz_rejected"]);
+  });
+});
+
+describe("migration 0008 (hidden imports and exports)", () => {
+  const sql = readFileSync(join(process.cwd(), "database", "migrations", "0008_hidden_submissions.sql"), "utf8");
+
+  it("adds deleted_at and deleted_by_account_id to both tables, and frees a hidden record's tracking number", () => {
+    for (const table of ["imports", "exports"]) {
+      expect(sql).toContain(`ALTER TABLE dbo.${table} ADD deleted_at DATETIMEOFFSET NULL;`);
+      expect(sql).toContain(`ALTER TABLE dbo.${table} ADD deleted_by_account_id UNIQUEIDENTIFIER NULL`);
+      expect(sql).toMatch(new RegExp(`CREATE UNIQUE INDEX ux_${table}_tracking_number[\\s\\S]*?deleted_at IS NULL`));
+    }
+  });
+
+  it("is left out of every list, count and single read", () => {
+    for (const file of ["imports", "exports"]) {
+      const source = readFileSync(join(process.cwd(), "src", "features", file, "queries.ts"), "utf8");
+      const reads = source.match(/(?:FROM|JOIN) dbo\.(imports|exports)\b/g) ?? [];
+      const hidden = source.match(/deleted_at IS NULL/g) ?? [];
+      expect(hidden.length, file).toBe(reads.length);
+    }
   });
 });

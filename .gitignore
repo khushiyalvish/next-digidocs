@@ -52,3 +52,6 @@ next-env.d.ts
 # fresh clone; what is in it is not.
 .pm2/
 *.pid
+
+# uploaded documents (UPLOADS_DIR default)
+/uploads/

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { z } from "zod";
 import { getConfig } from "@/lib/config";
-import { LfzLogo } from "@/components/lfz-logo";
 import { buttonClasses } from "@/components/ui/button";
 import { AuthCard } from "../auth-card";
 
@@ -33,7 +32,6 @@ export default async function SignInErrorPage({ searchParams }: PageProps<"/sso/
           Back to OnePortal
         </a>
         <p className="text-center text-[0.8125rem] text-muted">Open DigiDocs again from the OnePortal launcher.</p>
-        <LfzLogo className="mx-auto mt-2" />
       </div>
     </AuthCard>
   );

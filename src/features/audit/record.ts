@@ -17,6 +17,11 @@ export const AUDIT_EVENT_TYPES = {
   "master.agent_updated": "Updated a clearing agent",
   "master.port_created": "Added a port",
   "master.port_updated": "Updated a port",
+  "import.created": "Started an import (draft and tracking number)",
+  "import.submitted": "Submitted an import to LFTZ",
+  "import.reviewed": "Approved or rejected an import (LFZ Admin or NEPZA)",
+  "import.deleted": "Deleted (hid) an import",
+  "export.deleted": "Deleted (hid) an export",
 } as const;
 
 export type AuditEventType = keyof typeof AUDIT_EVENT_TYPES;

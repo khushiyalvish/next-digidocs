@@ -84,10 +84,103 @@ Nothing: built to ARCHITECTURE.md from its first line (2026-10-06).
 | 25 | **Apply `0007_imports_exports.sql` to `DigiDocsOPNext`** (`database/README.md`, with `-f 65001`). Until then List Import, List Export **and the LFZ Admin dashboard** fail with "Invalid object name dbo.imports" (the owner saw it on the list on 2026-10-08). 0007 was changed on 2026-10-08 before being applied (transaction direction). Then open both lists as LFZ Admin (empty: "No imports yet"), and `/imports?step=pending-lfz` from a dashboard card. | Owner |
 | 26 | ~~The dashboard cards still show 0: the counting query is not written.~~ Done 2026-10-08 (`countImportsByStatus`). | — |
 | 27 | The list pages have never shown a row: there is no way to create an import or export yet. Check the table at 320, 375 and 1440 px (hidden columns repeated under the tracking number, remarks in red) once Add Import exists, and an Enterprise user seeing only their organisation's rows. | With Add Import |
+| 28 | The OnePortal-style header (2026-10-12) has not been seen signed in. Open DigiDocs from the launcher and look at it at 375, 1024 and 1440 px: the dropdowns in the second row (md–xl) and in the bar (xl+), the phone menu, and both themes. Then decide whether the page titles and the footer should change too (kept for now). | Owner |
+| 29 | **Database renamed** by the owner on 2026-10-12 from `DigiDocsOPNext` to `digidocsnext` (`.env.local` updated). The docs, `.env.example` and `create_database.sql` still say `DigiDocsOPNext`; update them once the rename is confirmed working. | Owner, then Claude |
+| 30 | **Apply `0008_hidden_submissions.sql` to the database** (`database/README.md`, with `-f 65001`), after 0007. Until then the import and export lists, the dashboard and the record pages fail with "Invalid column name deleted_at". | Owner |
+| 31 | The Action column, the record pages and Delete have not been seen working: there are no imports or exports until Add Import / Add Export. Then check as an Enterprise user (Edit/Delete on a draft; Delete asks first; the row disappears) and as LFZ Admin (View only), at 375 and 1440 px, and add a record's pages to `tests/ui/responsive.spec.ts` once the test data has one. | With Add Import |
+| 32 | ~~**Export the old import form settings**~~ Key-information settings done 2026-10-15 (read directly, migration 0010). Item columns: the owner described them instead of `GET_ItemTableHeaders`. Was: **Export the old import form settings** from the live old database (read-only SELECTs; the command is in the 2026-10-14 session reply): `M_KeyInfoInput`, `Map_KeyInputParticular`, the `GET_ItemTableHeaders` procedure and what it reads, `M_ListOfValues`, `Map_ParticularDocument`, `M_Particular`. Add Import cannot show the right fields per Particular until then. | Owner |
+| 33 | **Apply `0009_import_form.sql`** after 0008 (`database/README.md`, `-f 65001`). Then as an Enterprise user: Import → Add Import → choose a Particular → the form opens with tracking number and doc date; Save as draft with nothing filled in; reopen (Edit) and see it as saved; Submit and see a message on every missing field. Try Sea Container Import (containers), Local Import (short item table), Multiple invoices. | Owner |
+| 34 | **Add Import still to build:** ~~the calculations~~ done 2026-10-19 (#40); ~~Documents and the duty-paid file~~ done 2026-10-15; the per-Particular key fields (#32); the BL label for air ("Airway Bill"?) and units filtered by solid/liquid per Particular (old setUnitDDL); whether Submit should go to "Enterprise Submit" (cover letter) before "Submitted to LFTZ". | Owner + Claude |
+| 35 | The searchable dropdown (`src/components/searchable-select.tsx`) is DigiDocs-only (decision log 2026-10-15). If other suite applications want it, add it to the hub's kit, then copy it back here. Other dropdowns (list filters, dashboard filters, administration) are still plain: make them searchable when the owner asks. The owner will say per Particular which fields to show and hide. | Owner / hub |
+| 36 | **Apply `0010_key_info_fields.sql`** after 0009. Without it the form shows no key-information fields and no Bill of Lading section. Then open a draft of each Particular (Dry Bulk, Liquid Bulk, Sea Container, Local Import, Local Purchase, Air Shipment) and compare its Key Information with old DigiDocs. | Owner |
+| 37 | **Apply `0011_import_documents.sql`** after 0010. Then on a draft: upload a PDF to a document, replace it, remove it; add two files to Others; try "Upload to all"; try a .docx, a renamed .html and a file over 5 MB (each refused with a message); Local Import with Duty Paid = Yes shows the Duty Paid File; Submit without a mandatory document names it; the View page lists the files, and LFZ Admin can open them. Files land in `uploads/imports/<import id>/` (or `UPLOADS_DIR`): back that folder up with the database. | Owner |
+| 38 | Uploaded files of hidden (deleted) imports stay in the uploads folder, and `data:clear` leaves files behind (it only empties tables). If disk space matters, a clean-up command for files without a row. | Later |
+| 39 | **Apply `0012_drop_foreign_keys.sql` and `0013_import_item_values.sql`** after 0011. 0012 prints each foreign key it drops. Afterwards `TRUNCATE TABLE dbo.imports` works; empty an import's lines too (`import_bl_numbers`, `import_invoices`, `import_containers`, `import_items`, `import_documents`), or they are left without their import. | Owner |
+| 40 | **Apply `0014_import_amount_precision.sql`** after 0013. Then try on a Dry Bulk draft: invoice FOB 1000, Freight 100, Insurance 50, items 300 and 700 (qty 10 and 7): freight 30 / 70, insurance 15 / 35, CIF 345 / 805, CISS 3 / 7, ETLS 1.73 / 4.03, unit price 34.50 / 115.00. Change the invoice FOB: the item FOBs clear with the old message. Type item FOBs above the invoice total: refused. Local Import: KGS 2,500 → Total Tonnes 2.5. | Owner |
+| 41 | **Apply `0015_import_review.sql`** after 0014. Then walk one import through: Enterprise submits → LFZ Admin opens it (View), Approve with an LFZ Letter → NEPZA approves with a NEPZA Letter → LFZ Admin "Reject NEPZA Letter" with a reason → NEPZA re-submits a new letter → LFZ Final Approve with an approval letter → Process Completed. Also an LFZ rejection: the enterprise sees the reason, edits and resubmits. Check the timeline, the letters and the list's statuses at each step, at 375 and 1440 px. | Owner |
+| 42 | **Approval process: not built yet** — emails on every step (old: NEPZA told of LFZ approval, LFZ of NEPZA's decision, the enterprise of rejections and completion; needs mail settings), ~~"Download Document"~~ done 2026-10-19, the officers' "Save" (Saved by LFTZ / NEPZA), the enterprise's "Enterprise Submit" cover-letter step, and the same for exports. | Owner decides order |
+| 43 | **`npm audit --omit=dev` (2026-10-19): next — high** (cache poisoning in SSG/ISR, SSRF in image optimisation, dev-server and metadata-route information disclosure), **mssql → tedious → sprintf-js — moderate** (denial of service). DigiDocs uses neither ISR nor image optimisation, but upgrade Next.js through the hub's kit (CHILD-APP-SETUP-FOR-CLAUDE.md) and mssql when fixed versions are available. | Hub / owner |
 
 ---
 
 ## 4. Session log
+
+### 2026-10-19 — Download Document (Claude Code)
+
+- Owner chose "Download Document" next. Read the old mergePageToPdfAndDownload (browser-side, pdf-lib + jsPDF, dropped ZIP/GIF/TIFF silently). Built server-side: `combined-pdf.ts` with a contents page (in / left out and why), `listImportStoredFiles`, `GET /api/imports/[id]/combined-pdf`, button in the View header. Installed **pdf-lib 1.17.1** (exact). 3 unit checks build real PDFs and count pages.
+- `npm audit --omit=dev` after the install: pdf-lib not flagged; **next** (high) and **mssql → tedious → sprintf-js** (moderate) are, already before this change (#43).
+
+### 2026-10-19 — Review buttons also at the bottom of the View page (Claude Code)
+
+- Owner agreed to have the action buttons where the old page had them too: the "Your action" panel (letter upload, Reject / Approve / Cancel in popups) now shows at the top and again after Items. Same steps, same checks; each panel works on its own. Not seen in a browser.
+
+### 2026-10-19 — Item Details full width on the View page (Claude Code)
+
+- Owner: make the item detail section full width. `ImportView` shows Items below the two-column part (main + Summary/Timeline), across the whole page. Not seen in a browser.
+
+### 2026-10-19 — Import View page and approval process (Claude Code)
+
+- Read old `ViewImpExp.cshtml` (1,648 lines), `UpdateApplicantStatus`, `EnterpriseLetter`, `updateNepzaLetterReason`, `ImpExp_Status_U` (reference only). Owner chose: LFZ uploads the final approval letter (old generated it), emails later, the NEPZA-letter loop included.
+- Migration **0015** (`import_status_history`; letter purposes on `import_documents`); `features/workflow/review.ts` (steps per role and status; 9 unit checks); `moveImportStatus`, `recordImportStep` (also on start and submit); `getImportView`, `listImportSteps`, letters in `listImportDocuments`; `POST /api/imports/[id]/review`; audit type `import.reviewed`; View page rebuilt (`import-view.tsx`: summary, Key Information, Documents + letters, Invoices, Containers, Items, Timeline; `review-panel.tsx`: the role's steps in popups with letter upload and reason); `features/imports/format.ts` shared with the form; SubmissionRecord lost its now-unused document list; data:clear updated.
+- Not applied: 0015 (#41). Not seen in a browser.
+
+### 2026-10-19 — Popups for every confirmation (Claude Code)
+
+- Owner: a popup for all confirmations. `ConfirmDialogButton` gained a "confirm" tone (tick, primary) and `onConfirm`; used for Generate tracking number, Save as draft (old question, newly asked) and Submit, with the old form's titles and questions. No in-place confirmation is left (`ConfirmSubmitButton` stays in the kit, unused). Not seen in a browser.
+
+### 2026-10-19 — Import calculations and validation (Claude Code)
+
+- Read old `Import.js` (2,536 lines), `Import_CustomFile.js`, `validate_master.js`, the item row partials and the HSE model (reference only). Found that the old duty columns never held amounts (Duty saved 0, LVY/EXC empty, VAT the rate). Owner chose: rates only; clear item FOBs when the invoice FOB total changes; bring Total Tonnes, unit lists, BL-in-use and the tiny-FOB-difference fix.
+- `features/imports/calculation.ts` (pure: allocation with remainder, CIF, CISS, ETLS, unit price, reconcile, Total Tonnes, units per Particular), `rules.ts` (applied on the server before storing), `getUnitLegacyIds`, `findBlNumbersInUse`; `saveImportForm` stores the calculated values; migration **0014** (4 decimals); form: invoice and item lines lifted into the form, live calculations, invoice-change reset and item-FOB cap with the old messages, FOB totals line, Total Tonnes live and read-only for Local Import, Shipment Unit list per Particular, BL repeat flagged at once. 16 unit checks with worked numbers.
+- Not applied: 0014 (#40). Not seen in a browser.
+
+### 2026-10-19 — No foreign keys; item values; delete popup (Claude Code)
+
+- Owner could not TRUNCATE `imports` (foreign keys point at it) and wants every table truncatable. Explained that this needs every foreign key gone and offered a clear script instead; owner chose to remove them. Migration **0012** drops all foreign keys (dynamic, checks none is left); `checkImportReferences` checks every id of the import form before saving; `clear-parts.ts` deletes import lines and sessions itself (nothing cascades); unit check: no foreign keys after 0012. CLAUDE.md rule, ARCHITECTURE §2 and decision log updated.
+- Migration **0013**: `import_items` gets the old item values (allocated freight / insurance, CIF, CISS, ETLS, ID, LVY, EXC, VAT values) and the HSE rates; rates copied at every save; values NULL until the calculation step.
+- Delete on the import and export lists asks in a popup (`ConfirmDialogButton`, `<dialog>`), not in the row.
+- Not applied: 0012, 0013 (#39).
+
+### 2026-10-15 — Import documents (Claude Code)
+
+- Owner asked why there was no document section (not built yet: #34) and to check `M_Document`, `Map_ImpExpDocs` and the mapping. Read from `LFZ_DigidocsNew` (SELECTs only; for `Map_ImpExpDocs` its columns and counts only — 32 rows, all .png — not its content). Only change since 0004: "Others" 44 → 48.
+- Migration **0011** (Others; `import_documents`); `UPLOADS_DIR` setting (`config.ts`, `.env.example`, `/uploads/` git-ignored); `features/imports/documents.ts` (rules, content sniffing; unit checks), `document-storage.ts`; `listImportDocuments`, `getEditableImport`, `getImportDocumentFile`; `addImportDocument`, `removeImportDocumentRow`; upload and download routes; `removeImportDocument` action; Submit checks documents and the Duty Paid File; "Enterprise Documents" section after Key Information, Duty Paid File in Key Information, documents on the View page; data:clear updated. Not applied: #37.
+
+### 2026-10-15 — Key information per Particular (Claude Code)
+
+- Owner: use old `M_KeyInfoInput` and `Map_KeyInputParticular`. With the owner's go-ahead, read them (and `M_Particular`) from `LFZ_DigidocsNew` on this computer: SELECTs only, Windows sign-in, output in the session's scratchpad. Nothing else run against any database.
+- Migration **0010** (`key_info_fields` 46, `transaction_type_key_fields` 95; compared row by row with the old output; `label` renamed `field_label` for the naming check); `listTransactionTypeKeyFields`; `form.ts` now takes `ImportFormSettings` (`keyFieldsFor`, `blNumbersFor`, `blLineLabel`, `MAX_BL_NUMBERS`); hidden fields not saved; BL section inside Key Information with the Particular's label. Unit checks read the settings from 0010 (12 checks). Not applied: #36.
+- Noticed: the `sqlcmd` export command given on 2026-10-14 used `-W` with `-y 0`, which sqlcmd refuses; it was not needed after all.
+
+### 2026-10-15 — Searchable dropdowns on Add Import (Claude Code)
+
+- Owner: make every dropdown searchable like the HSE code; chose a DigiDocs-only component (decision log 2026-10-15, open item #35). `SearchableSelect` (options filtered in the browser, or `load` for HSE codes; hidden input; layer over the page; arrows / Enter / Escape) replaces every `<select>` on `/imports/new` and the import form, and the old HSE picker.
+- Next from the owner: which fields each Particular shows and hides; then the calculations.
+
+### 2026-10-14 — Add Import form (Claude Code)
+
+- Read the old form (AddImpExp.cshtml, _ImportKeyInfoInputsPartial, row partials, GenerateTrackingNo, M_ListOfValues; reference only). The import key-field settings (ids 24-46) and GET_ItemTableHeaders are in no dump: owner exports them (#32).
+- Owner: build it all at once; tracking number and date when the Particular is chosen; draft saves with nothing filled; Submit validates every field; files to a folder. Then, step by step: Single/Multiple invoices, containers only for Sea Container, two item tables (8/9 short, others full); calculations next.
+- Migration **0009** (not applied: #33); `features/imports/form.ts` (fields, layouts, parsing, Submit checks; 11 unit checks); `createImport` / `saveImportForm`; actions `startImport` / `saveImport`; `getImportForm`, `listImportFormOptions`, `listImportParticulars`; `searchHseCodes` gained `activeOnly`; `GET /api/hse-codes`; pages `/imports/new` (Particular + confirm) and `/imports/[id]/edit` (the form); audit types `import.created`, `import.submitted`; data:clear text.
+- Still to build: #34.
+
+### 2026-10-14 — Action column on the import and export lists; Delete hides (Claude Code)
+
+- Owner: "start making list of import and list of export"; both lists already existed (2026-10-08), so the owner chose the missing old **Action** column. Read old `ListImpExp.cshtml`, `ListExp.cshtml`, `ImpExp_D` / `Exp_D` (reference only, nothing changed there).
+- `features/workflow/actions.ts`: View / Edit / Delete per kind, role and status; unit check compares every kind × role × status with the old views' rules.
+- Delete: owner chose to hide like old. Migration **0008** (`deleted_at`, `deleted_by_account_id`, tracking number unique among shown records; not applied: #30); `hideImport` / `hideExport` (first writers of the tables), `deleteSubmission` (shared parse → enterprise + own organisation + deletable status → hide + audit), actions `deleteImport` / `deleteExport`; audit types `import.deleted`, `export.deleted`. Lists, counts and single reads filter `deleted_at IS NULL` (a unit check counts them). data:clear test-users part updated.
+- Pages `/imports/[id]`, `/imports/[id]/edit`, `/exports/[id]`, `/exports/[id]/edit`: guard → id → scoped read → row rule, else 404; show the record and which module brings the form.
+- Old project: `git status` there showed 5 files changed on 2026-10-13 (15:17–17:35; dashboard views, AddImpExp, ViewImpExp, Import_CustomFile.js). Not made by this session; left untouched and reported to the owner.
+
+### 2026-10-12 — Header like OnePortal; LFZ logo and stripe removed (Claude Code)
+
+- Owner: DigiDocs's theme should match OnePortal's, without the logos. Chosen: OnePortal's bar with DigiDocs's dropdowns kept; logo file and component and the LFZ stripe removed; footer and compact page titles kept (decision log 2026-10-12, reversing three 2026-10-08 entries).
+- `app-header.tsx` rewritten on the kit's `Brand` and `UserMenu`; `layout.tsx` passes `appName`, no role label; `/sso/error` without the logo; `public/lfz-logo.png`, `components/lfz-logo.tsx` deleted. CLAUDE.md and CODEBASE-GUIDE updated.
+- **Enterprise dashboard:** Home for an Enterprise User is now the import status summary (five cards, Particular filter), counting only their organisation's imports. `countImportsByStatus(member, filter)` reuses `listScope`; three unit checks pin `listScope` (enterprise held to its own organisation, none without one, admin may filter). Decision log and AUDIT.md updated. Not seen rendered: needs an Enterprise test person (#11) and imports (Add Import).
+- Then a sixth card for Enterprise Users only, **Saved Transactions** (drafts), via `roles` on each card and `dashboardCardsFor`; six cards sit 3 × 2 from `lg`.
+- Cards made compact (owner: "a little bit small and good looking"): a row with a tinted icon tile, the label and the number, a coloured left edge and an arrow; the hint moved to the tooltip and screen-reader text. Six in a row from `2xl`, five from `xl`.
+- 2026-10-14, owner: a little taller and better looking. Cards stacked again but compact (`p-4`): icon tile and arrow on top, the number (`text-3xl`), the label, and the hint visible again (phones have no tooltip); coloured left edge kept, slight lift on hover. Unit checks updated (cards per role; every card's statuses visible to each of its roles).
+- Also: the owner renamed the database to `digidocsnext` (#29). The first sign-in afterwards failed with "Login failed for user 'sa'" because `.env.local` still named the old database.
 
 ### 2026-10-08 — Imports and exports apart; dashboard filter (Claude Code)
 

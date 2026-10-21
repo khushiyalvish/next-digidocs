@@ -97,8 +97,6 @@ export const MENU: MenuSection[] = [
         href: "/imports/new",
         label: "Add Import",
         roles: ["enterprise"],
-        comingIn: "module 4 (Import)",
-        summary: "An import with its key information, items (HSE codes), containers, invoices and the documents its transaction type requires.",
       },
       {
         href: "/imports",

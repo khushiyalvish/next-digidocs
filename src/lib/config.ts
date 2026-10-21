@@ -1,5 +1,6 @@
 // Suite kit v7: adapted from OnePortal src/lib/config.ts (OnePortal settings added; mail, passwords and TEST_USER_PASSWORD removed). Merge hub changes by hand.
 import "server-only";
+import path from "node:path";
 import { z } from "zod";
 
 /**
@@ -46,6 +47,11 @@ const settingsSchema = z
     ONEPORTAL_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
     ONEPORTAL_APP_ID: z.guid(),
     ONEPORTAL_APP_SECRET: z.string().min(32),
+
+    // Folder where uploaded import and export documents are kept: outside the web root (Next.js
+    // serves only public/), served only through the guarded download route. Relative to the
+    // project folder unless absolute. Back it up together with the database.
+    UPLOADS_DIR: z.string().trim().min(1).default("uploads"),
 
     // Header set by YOUR reverse proxy carrying the client IP (e.g. x-forwarded-for).
     // Leave empty when there is no proxy: IPs are then not recorded.
@@ -95,6 +101,8 @@ function toConfig(settings: z.infer<typeof settingsSchema>) {
       appSecret: settings.ONEPORTAL_APP_SECRET,
     },
     clientIpHeader: settings.CLIENT_IP_HEADER,
+    // Runtime data, not code: the bundler must not trace (and ship) the folder.
+    uploadsDir: path.resolve(/* turbopackIgnore: true */ process.cwd(), settings.UPLOADS_DIR),
   };
 }
 

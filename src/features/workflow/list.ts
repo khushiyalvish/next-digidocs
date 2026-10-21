@@ -31,6 +31,9 @@ export const listFilterSchema = z.object({
 });
 export type ListFilter = z.infer<typeof listFilterSchema>;
 
+/** The hidden field of a row's Delete form: which import or export. */
+export const submissionIdSchema = z.object({ id: idSchema });
+
 export interface ListScope {
   /** Nothing to show: the query must not run (an empty IN list is a syntax error). */
   nothing: boolean;

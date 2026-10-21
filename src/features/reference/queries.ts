@@ -61,8 +61,9 @@ export interface HseCodeDto {
   isActive: boolean;
 }
 
-/** HSE codes whose code starts with, or whose description contains, the search text. */
-export async function searchHseCodes(filter: { q?: string; page: number }): Promise<{ codes: HseCodeDto[]; total: number }> {
+/** HSE codes whose code starts with, or whose description contains, the search text; `activeOnly` for choosing one on a form. */
+export async function searchHseCodes(filter: { q?: string; page: number; activeOnly?: boolean }): Promise<{ codes: HseCodeDto[]; total: number }> {
+  const activeOnly = filter.activeOnly ?? false;
   const contains = containsPattern(filter.q);
   const startsWith = filter.q ? `${escapeLike(filter.q)}%` : null;
   const offset = (filter.page - 1) * HSE_PAGE_SIZE;
@@ -84,9 +85,10 @@ export async function searchHseCodes(filter: { q?: string; page: number }): Prom
            CONVERT(CHAR(10), valid_from, 23) AS valid_from, CONVERT(CHAR(10), valid_to, 23) AS valid_to,
            COUNT(*) OVER () AS total
     FROM dbo.hse_codes
-    WHERE ${contains} IS NULL
+    WHERE (${activeOnly} = 0 OR is_active = 1)
+      AND (${contains} IS NULL
        OR hse_code LIKE ${startsWith} ESCAPE '\\'
-       OR goods_description LIKE ${contains} ESCAPE '\\'
+       OR goods_description LIKE ${contains} ESCAPE '\\')
     ORDER BY hse_code
     OFFSET ${offset} ROWS FETCH NEXT ${HSE_PAGE_SIZE} ROWS ONLY`;
 
@@ -120,4 +122,64 @@ export async function listTransactionTypeOptions(): Promise<(OptionDto & { direc
     WHERE is_active = 1
     ORDER BY direction DESC, transaction_name`;
   return rows.map((row) => ({ id: row.id.toLowerCase(), label: row.transaction_name, direction: row.direction }));
+}
+
+export interface ImportFormOptions {
+  countries: OptionDto[];
+  states: OptionDto[];
+  currencies: OptionDto[];
+  ports: (OptionDto & { kind: string })[];
+  units: (OptionDto & { kind: string; legacyId: number | null })[];
+  clearingAgents: OptionDto[];
+}
+
+/** The choices of the Add Import form's dropdowns: active rows only, by name. */
+export async function listImportFormOptions(): Promise<ImportFormOptions> {
+  const [countries, states, currencies, ports, units, clearingAgents] = await Promise.all([
+    db.query<{ id: string; label: string }>`SELECT id, country_name AS label FROM dbo.countries WHERE is_active = 1 ORDER BY country_name`,
+    db.query<{ id: string; label: string }>`SELECT id, state_name AS label FROM dbo.nigerian_states WHERE is_active = 1 ORDER BY state_name`,
+    db.query<{ id: string; label: string }>`
+      SELECT id, CONCAT(iso_code, ' - ', currency_name) AS label FROM dbo.currencies WHERE is_active = 1 ORDER BY iso_code`,
+    db.query<{ id: string; label: string; kind: string }>`
+      SELECT id, port_name AS label, port_kind AS kind FROM dbo.ports WHERE is_active = 1 ORDER BY port_name`,
+    db.query<{ id: string; label: string; kind: string; legacyId: number | null }>`
+      SELECT id, unit_code AS label, unit_kind AS kind, legacy_id AS legacyId FROM dbo.measurement_units WHERE is_active = 1 ORDER BY unit_code`,
+    db.query<{ id: string; label: string }>`SELECT id, agent_name AS label FROM dbo.clearing_agents WHERE is_active = 1 ORDER BY agent_name`,
+  ]);
+  const lower = <T extends { id: string }>(rows: T[]) => rows.map((row) => ({ ...row, id: row.id.toLowerCase() }));
+  return {
+    countries: lower(countries),
+    states: lower(states),
+    currencies: lower(currencies),
+    ports: lower(ports),
+    units: lower(units),
+    clearingAgents: lower(clearingAgents),
+  };
+}
+
+/** The active import Particulars, for starting an import. */
+export async function listImportParticulars(): Promise<(OptionDto & { legacyId: number | null })[]> {
+  const rows = await db.query<{ id: string; transaction_name: string; legacy_id: number | null }>`
+    SELECT id, transaction_name, legacy_id FROM dbo.transaction_types
+    WHERE is_active = 1 AND direction = 'import'
+    ORDER BY transaction_name`;
+  return rows.map((row) => ({ id: row.id.toLowerCase(), label: row.transaction_name, legacyId: row.legacy_id }));
+}
+
+/** One key-information field a Particular's form shows (migration 0010; old Map_KeyInputParticular). */
+export interface KeyFieldSettingDto {
+  fieldKey: string;
+  label: string;
+  required: boolean;
+}
+
+/** The key-information fields of a Particular: active ones only, as the old GET_Particular_KeyInfoInput read them. */
+export async function listTransactionTypeKeyFields(transactionTypeId: string): Promise<KeyFieldSettingDto[]> {
+  const rows = await db.query<{ field_key: string; field_label: string; is_mandatory: boolean }>`
+    SELECT f.field_key, s.field_label, s.is_mandatory
+    FROM dbo.transaction_type_key_fields s
+    JOIN dbo.key_info_fields f ON f.id = s.key_info_field_id
+    WHERE s.transaction_type_id = ${transactionTypeId} AND s.is_active = 1 AND f.is_active = 1
+    ORDER BY f.legacy_id`;
+  return rows.map((row) => ({ fieldKey: row.field_key, label: row.field_label.trim(), required: row.is_mandatory }));
 }

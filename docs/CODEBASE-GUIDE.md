@@ -91,7 +91,7 @@ tests/
 | Add a graph or dashboard | Kit charts only (`src/components/ui/charts.tsx`), by the rules in hub guide §7.4, with a "Show sample data" switch |
 | Who may open a page | the first line: `requireMember()` (any role) or `requireRole("lfz_admin", …)` — `src/features/auth/guards.ts` |
 | The roles, their labels and descriptions | `src/features/access/roles.ts` (and the CHECK in a new migration if a key changes; a test compares them) |
-| The header (stripe, logo row, menu row with dropdowns, phone menu) and footer | `src/app/(app)/app-header.tsx`, `src/app/(app)/layout.tsx` — DigiDocs's own, not suite kit (decision log 2026-10-08) |
+| The header (OnePortal's bar with the kit's `Brand` and `UserMenu`, section dropdowns, phone menu) and footer | `src/app/(app)/app-header.tsx`, `src/app/(app)/layout.tsx` — the suite shell plus DigiDocs's dropdowns (decision log 2026-10-12) |
 | Banks, clearing agents, ports | `src/features/masters/`, pages under `src/app/(app)/master/` |
 | The menu: sections, dropdown items, who may open each page, "coming" texts | `src/features/access/menu.ts` (the top bar, the tabs and `requireMenuItem` all read it); a new entry needs its `page.tsx` (a unit test checks) |
 | The dashboard (cards and the statuses of each step) | `src/features/dashboard/steps.ts`, the count `countImportsByStatus` in `src/features/imports/queries.ts`, the page `src/app/(app)/page.tsx` |

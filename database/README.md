@@ -27,6 +27,14 @@ DigiDocs uses the database **`DigiDocsOPNext`**.
    sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0005_hse_codes.sql
    sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0006_fix_special_characters.sql
    sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0007_imports_exports.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0008_hidden_submissions.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0009_import_form.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0010_key_info_fields.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0011_import_documents.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0012_drop_foreign_keys.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0013_import_item_values.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0014_import_amount_precision.sql
+   sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i database/migrations/0015_import_review.sql
    ```
 
    **Always pass `-f 65001`**: the files are UTF-8, and without it sqlcmd reads them in the

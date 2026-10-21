@@ -3,6 +3,7 @@ import { PackageOpen } from "lucide-react";
 import { requireMenuItem } from "@/features/auth/guards";
 import { listOrganisationOptions } from "@/features/organisations/queries";
 import { listTransactionTypeOptions } from "@/features/reference/queries";
+import { deleteImport } from "@/features/imports/actions";
 import { listImports } from "@/features/imports/queries";
 import { listFilterSchema } from "@/features/workflow/list";
 import { SubmissionList } from "@/app/(app)/submission-list";
@@ -29,6 +30,7 @@ export default async function ImportsPage({ searchParams }: PageProps<"/imports"
       transactionTypes={transactionTypes.filter((type) => type.direction === "import")}
       enterprises={enterprises}
       icon={PackageOpen}
+      deleteAction={deleteImport}
     />
   );
 }

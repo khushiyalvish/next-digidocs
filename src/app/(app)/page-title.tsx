@@ -4,7 +4,7 @@ import { ChevronRight, Home } from "lucide-react";
 import type { Crumb } from "@/features/access/menu";
 
 /*
- * DigiDocs's page header, part of its own LFZ header design (decision log 2026-10-08): a
+ * DigiDocs's page header (decision log 2026-10-08, kept on 2026-10-12): a
  * breadcrumb from the menu (features/access/menu.ts `menuTrail`), then a small title with the
  * brand mark beside it, a line of description and the page's actions, above a thin rule. Used
  * by every signed-in page instead of the kit's large PageHeader.

@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { Plus, Search, X, type LucideIcon } from "lucide-react";
+import { Eye, Pencil, Plus, Search, Trash2, X, type LucideIcon } from "lucide-react";
+import type { ActionResult } from "@/lib/result";
 import type { Member } from "@/features/auth/guards";
 import { dashboardCard } from "@/features/dashboard/steps";
+import { rowActions } from "@/features/workflow/actions";
 import { LIST_PAGE_SIZE, type ListFilter, type ListPage } from "@/features/workflow/list";
 import { STATUS_LABELS, STATUS_TONES, VISIBLE_STATUSES } from "@/features/workflow/statuses";
 import type { OptionDto } from "@/features/reference/queries";
+import { ActionForm, FormMessage } from "@/components/forms/action-form";
+import { ConfirmDialogButton } from "@/components/confirm-dialog";
 import { LocalTime } from "@/components/local-time";
 import { buttonClasses } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
@@ -16,8 +20,9 @@ import { PageTitle } from "@/app/(app)/page-title";
 
 /*
  * The import list and the export list (old ImpExp/ListImpExp and Export/ListExport): filters in
- * the address bar, one row per submission with its workflow status, newest first. Rows have no
- * actions yet: View, Edit and Delete come with Add Import and Add Export (decision log 2026-10-08).
+ * the address bar, one row per submission with its workflow status, newest first. Each row offers
+ * View, Edit and Delete as the old lists did, by role and status (features/workflow/actions.ts);
+ * Delete hides the record (decision log 2026-10-14).
  */
 
 export interface SubmissionListProps {
@@ -30,9 +35,11 @@ export interface SubmissionListProps {
   /** Only for roles that work across enterprises. */
   enterprises: OptionDto[];
   icon: LucideIcon;
+  /** Delete on a row (hides it); the action re-checks role, organisation and status. */
+  deleteAction: (previous: ActionResult | null, formData: FormData) => Promise<ActionResult>;
 }
 
-export function SubmissionList({ kind, path, member, filter, result, transactionTypes, enterprises, icon }: SubmissionListProps) {
+export function SubmissionList({ kind, path, member, filter, result, transactionTypes, enterprises, icon, deleteAction }: SubmissionListProps) {
   const noun = kind === "import" ? "import" : "export";
   const Noun = kind === "import" ? "Import" : "Export";
   const isEnterprise = member.role === "enterprise";
@@ -147,6 +154,7 @@ export function SubmissionList({ kind, path, member, filter, result, transaction
               ...(showFormSaved ? [{ label: "Form Modified", className: showFrom.xl }] : []),
               { label: "Final Submit", className: showFrom.xl },
               { label: "Status", className: showFrom.sm },
+              { label: "Action" },
             ]}
           >
             {result.rows.map((row) => (
@@ -188,11 +196,59 @@ export function SubmissionList({ kind, path, member, filter, result, transaction
                   <Badge tone={STATUS_TONES[row.status]}>{STATUS_LABELS[row.status]}</Badge>
                   {row.remarks && <span className="mt-1 block max-w-64 text-[0.8125rem] wrap-anywhere text-danger">{row.remarks}</span>}
                 </Cell>
+                <Cell>
+                  <RowActionButtons kind={kind} path={path} member={member} row={row} deleteAction={deleteAction} />
+                </Cell>
               </tr>
             ))}
           </Table>
           <Pager total={result.total} noun={[noun, `${noun}s`]} page={filter.page} pageCount={pageCount} pageHref={(page) => listHref(path, filters, page)} />
         </>
+      )}
+    </div>
+  );
+}
+
+/** A row's View, Edit and Delete, as its role and status allow. Delete asks first. */
+function RowActionButtons({
+  kind,
+  path,
+  member,
+  row,
+  deleteAction,
+}: Pick<SubmissionListProps, "kind" | "path" | "member" | "deleteAction"> & { row: ListPage["rows"][number] }) {
+  const actions = rowActions(kind, member.role, row.status);
+  if (actions.length === 0) return <span className="text-faint">—</span>;
+  const name = row.trackingNumber ?? `this ${kind}`;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {actions.includes("view") && (
+        <Link href={`${path}/${row.id}`} className={buttonClasses("ghost", "sm")} aria-label={`View ${name}`}>
+          <Eye aria-hidden /> View
+        </Link>
+      )}
+      {actions.includes("edit") && (
+        <Link href={`${path}/${row.id}/edit`} className={buttonClasses("ghost", "sm")} aria-label={`Edit ${name}`}>
+          <Pencil aria-hidden /> Edit
+        </Link>
+      )}
+      {actions.includes("delete") && (
+        <ActionForm action={deleteAction} hidden={{ id: row.id }} className="flex flex-col gap-1">
+          <ConfirmDialogButton
+            size="sm"
+            label={`Delete ${name}`}
+            title={`Delete this ${kind}?`}
+            message={
+              <>
+                <span className="font-medium text-ink">{name}</span> will be deleted and removed from your list.
+              </>
+            }
+            confirmLabel="Delete"
+          >
+            <Trash2 aria-hidden /> Delete
+          </ConfirmDialogButton>
+          <FormMessage successMessage={false} />
+        </ActionForm>
       )}
     </div>
   );

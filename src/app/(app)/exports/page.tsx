@@ -3,6 +3,7 @@ import { Ship } from "lucide-react";
 import { requireMenuItem } from "@/features/auth/guards";
 import { listOrganisationOptions } from "@/features/organisations/queries";
 import { listTransactionTypeOptions } from "@/features/reference/queries";
+import { deleteExport } from "@/features/exports/actions";
 import { listExports } from "@/features/exports/queries";
 import { listFilterSchema } from "@/features/workflow/list";
 import { SubmissionList } from "@/app/(app)/submission-list";
@@ -29,6 +30,7 @@ export default async function ExportsPage({ searchParams }: PageProps<"/exports"
       transactionTypes={transactionTypes.filter((type) => type.direction === "export")}
       enterprises={enterprises}
       icon={Ship}
+      deleteAction={deleteExport}
     />
   );
 }
