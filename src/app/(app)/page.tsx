@@ -1,171 +1,122 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ClipboardList, FilePen, Filter, Hourglass, Landmark, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowRight, ClipboardList } from "lucide-react";
 import { menuFor, menuTrail } from "@/features/access/menu";
 import { ROLES } from "@/features/access/roles";
 import { requireMember, type Member } from "@/features/auth/guards";
+import { getDashboard, listRecentSteps, listWaitingImports } from "@/features/dashboard/queries";
 import { dashboardFilterSchema } from "@/features/dashboard/schemas";
-import { cardCounts, dashboardCardsFor, type CardKey, type DashboardCard } from "@/features/dashboard/steps";
-import { countImportsByStatus } from "@/features/imports/queries";
+import {
+  attentionItems,
+  SAMPLE_ENTERPRISES,
+  sampleDashboard,
+  sampleWaiting,
+  stageTilesFor,
+  waitingForRole,
+  waitingListStatuses,
+  type StageTile,
+} from "@/features/dashboard/series";
+import type { CardKey } from "@/features/dashboard/steps";
 import { listOrganisationOptions } from "@/features/organisations/queries";
 import { listTransactionTypeOptions } from "@/features/reference/queries";
 import { countWaitingUsers } from "@/features/users/queries";
-import { buttonClasses } from "@/components/ui/button";
-import { cx } from "@/components/ui/cx";
-import { Alert, Card, CardBody, CardHeader, EmptyState } from "@/components/ui/primitives";
-import { AutoSubmitSelect } from "./auto-submit-select";
+import { listScope } from "@/features/workflow/list";
+import type { StatusKey } from "@/features/workflow/statuses";
+import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui/primitives";
 import { PageTitle } from "@/app/(app)/page-title";
+import { DashboardView, type Choice } from "./dashboard-view";
 
 export const metadata: Metadata = { title: "Home" };
 
-const CARD_ICONS: Record<CardKey, LucideIcon> = {
-  total: ClipboardList,
-  saved: FilePen,
-  "pending-lfz": Hourglass,
-  "pending-nepza": Landmark,
-  "approval-lftz": ShieldCheck,
-  completed: CheckCircle2,
-};
-
-// Theme tokens per card colour, written out so Tailwind sees every class.
-// The card's left edge, and its icon tile (a soft tint of the same colour).
-const CARD_COLORS: Record<DashboardCard["color"], { edge: string; icon: string }> = {
-  neutral: { edge: "border-l-line-strong", icon: "bg-subtle text-ink-soft" },
-  primary: { edge: "border-l-primary", icon: "bg-primary/10 text-primary" },
-  warning: { edge: "border-l-warning", icon: "bg-warning/10 text-warning" },
-  "chart-1": { edge: "border-l-chart-1", icon: "bg-chart-1/10 text-chart-1" },
-  accent: { edge: "border-l-accent", icon: "bg-accent/10 text-accent" },
-  success: { edge: "border-l-success", icon: "bg-success/10 text-success" },
-};
+/** One enterprise's share of the sample zone's figures. */
+const SAMPLE_ENTERPRISE_SHARE = 0.2;
 
 /**
- * Home. An LFZ Admin gets the dashboard of old DigiDocs (as D:\Khushiyal\DigidocsNext shows it):
- * the import status summary, filtered by transaction type and enterprise, each card opening the
- * import list at its step. An Enterprise user gets the same cards, counting only their own
- * organisation's imports, filtered by transaction type (decision log 2026-10-12). Every other role
- * gets its menu as shortcut cards (old DigiDocs showed them a blank page).
+ * Home: the dashboard (hub CHILD-APP-GUIDE.md §7.4; decision log 2026-10-27). LFZ Admin, NEPZA and
+ * Account see every enterprise's imports in the statuses their role sees, and may narrow the page
+ * to one enterprise; an Enterprise user sees only their own organisation's. Everyone may narrow it
+ * to one Particular and choose the period, and switch on sample data. NIS has no import screens
+ * and keeps its menu as shortcut cards.
  */
 export default async function HomePage({ searchParams }: PageProps<"/">) {
-  const user = await requireMember();
-  if (user.role !== "lfz_admin" && user.role !== "enterprise") return <RoleHome user={user} />;
-  const isAdmin = user.role === "lfz_admin";
+  const member = await requireMember();
+  const tiles = stageTilesFor(member.role);
+  if (tiles.length === 0) return <RoleHome user={member} />;
 
   const filter = dashboardFilterSchema.parse(await searchParams);
-  const [waiting, transactionTypes, organisations, byStatus] = await Promise.all([
-    isAdmin ? countWaitingUsers() : 0,
+  const seesAll = member.role !== "enterprise";
+  const [transactionTypes, organisations, waitingUsers] = await Promise.all([
     listTransactionTypeOptions(),
-    isAdmin ? listOrganisationOptions() : [],
-    countImportsByStatus(user, filter),
+    seesAll && !filter.sample ? listOrganisationOptions() : [],
+    member.role === "lfz_admin" ? countWaitingUsers() : 0,
   ]);
-  const importTypes = transactionTypes.filter((type) => type.direction === "import");
-  const counts = cardCounts(byStatus);
-  const cards = dashboardCardsFor(user.role);
 
-  const listHref = (card: CardKey) => {
-    const params = new URLSearchParams({ step: card });
-    if (filter.type) params.set("type", filter.type);
-    if (isAdmin && filter.enterprise) params.set("enterprise", filter.enterprise);
-    return `/imports?${params}`;
+  // Only choices the viewer is offered count; with sample data on, the enterprises are made-up ones.
+  const particulars: Choice[] = transactionTypes.filter((type) => type.direction === "import").map(({ id, label }) => ({ id, label }));
+  const enterprises: Choice[] = !seesAll
+    ? []
+    : filter.sample
+      ? SAMPLE_ENTERPRISES.map((enterprise) => ({ id: enterprise.id, label: `${enterprise.name} (${enterprise.code})` }))
+      : organisations.map(({ id, label }) => ({ id, label }));
+  const type = particulars.find((particular) => particular.id === filter.type)?.id;
+  const focus = enterprises.find((enterprise) => enterprise.id === filter.enterprise) ?? null;
+  const realFocusId = filter.sample ? undefined : focus?.id;
+
+  // The same scope as the import list: the role's statuses, an Enterprise user's own organisation.
+  const scope = listScope(member, { type, enterprise: realFocusId, page: 1 });
+  const [real, waitingReal, recent] = await Promise.all([
+    getDashboard(scope, filter.range, { byEnterprise: seesAll && !focus && !filter.sample }),
+    filter.sample ? [] : listWaitingImports(scope, waitingListStatuses(member.role)),
+    listRecentSteps(scope),
+  ]);
+
+  // Sample figures are laid over the real days, so the dates on the graphs are always today's.
+  const sampleOne = !seesAll
+    ? { code: member.organisationName ?? "Your organisation", share: SAMPLE_ENTERPRISE_SHARE }
+    : focus
+      ? { code: SAMPLE_ENTERPRISES.find((enterprise) => enterprise.id === focus.id)?.code ?? focus.label, share: SAMPLE_ENTERPRISE_SHARE }
+      : null;
+  const data = filter.sample ? sampleDashboard(real.days.map((day) => day.day), member.role, sampleOne) : real;
+  const waiting = filter.sample ? sampleWaiting(member.role, sampleOne) : waitingReal;
+
+  // The import list with the dashboard's Particular and (real) enterprise.
+  const listHref = (link?: StageTile["link"]) => {
+    const params = new URLSearchParams();
+    if (link && "step" in link) params.set("step", link.step);
+    if (link && "status" in link) params.set("status", link.status);
+    if (type) params.set("type", type);
+    if (realFocusId) params.set("enterprise", realFocusId);
+    const query = params.toString();
+    return query ? `/imports?${query}` : "/imports";
   };
 
+  const firstName = member.fullName.split(" ")[0] || member.fullName;
+  const scopeLabel = seesAll
+    ? `${ROLES[member.role].label} · ${focus ? focus.label : "every enterprise"}`
+    : `${ROLES[member.role].label} · ${member.organisationName ?? "your organisation"}`;
+  const waitingTitle = waitingForRole(member.role).length > 0 ? "Waiting for you, longest first" : "Open imports, longest first";
+
   return (
-    <div className="space-y-6">
-      <PageTitle
-        trail={[...menuTrail("/"), { label: "Dashboard" }]}
-        title="Import status summary"
-        description={
-          isAdmin
-            ? "Imports at each workflow step. A card opens its list."
-            : `${user.organisationName ?? "Your organisation"}'s imports at each workflow step. A card opens its list.`
-        }
-      />
-
-      {waiting > 0 && (
-        <Alert tone="warning">
-          {waiting === 1 ? "One person has" : `${waiting} people have`} signed in and {waiting === 1 ? "is" : "are"} waiting for a role.{" "}
-          <Link href="/admin/users?status=waiting" className="font-medium underline underline-offset-2">
-            Assign roles
-          </Link>
-        </Alert>
-      )}
-
-      {/* A GET form: the choices live in the address bar, and apply as soon as one changes. */}
-      <Card>
-        <form method="get" className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-end sm:px-5">
-          <div className="space-y-1.5 sm:w-72">
-            <label htmlFor="filter-type" className="block text-sm font-medium text-ink">
-              Particular
-            </label>
-            <AutoSubmitSelect id="filter-type" name="type" defaultValue={filter.type ?? ""}>
-              <option value="">All particulars</option>
-              {importTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.label}
-                </option>
-              ))}
-            </AutoSubmitSelect>
-          </div>
-          {isAdmin && (
-            <div className="space-y-1.5 sm:w-96">
-              <label htmlFor="filter-enterprise" className="block text-sm font-medium text-ink">
-                Enterprise
-              </label>
-              <AutoSubmitSelect id="filter-enterprise" name="enterprise" defaultValue={filter.enterprise ?? ""}>
-                <option value="">All enterprises</option>
-                {organisations.map((organisation) => (
-                  <option key={organisation.id} value={organisation.id}>
-                    {organisation.label}
-                  </option>
-                ))}
-              </AutoSubmitSelect>
-            </div>
-          )}
-          {/* The selects apply on change; the button is there for anyone who looks for it, and without JavaScript. */}
-          <button type="submit" className={buttonClasses("secondary")}>
-            <Filter aria-hidden /> Filter
-          </button>
-          {(filter.type || (isAdmin && filter.enterprise)) && (
-            <Link href="/" className={buttonClasses("ghost")}>
-              Clear filters
-            </Link>
-          )}
-        </form>
-      </Card>
-
-      <section
-        aria-label="Status summary"
-        className={cx("grid gap-3 sm:grid-cols-2 lg:grid-cols-3", cards.length === 5 ? "xl:grid-cols-5" : "2xl:grid-cols-6")}
-      >
-        {cards.map((card) => {
-          const Icon = CARD_ICONS[card.key];
-          const colors = CARD_COLORS[card.color];
-          return (
-            <Link
-              key={card.key}
-              href={listHref(card.key)}
-              className={cx(
-                "group flex min-w-0 flex-col rounded-card border border-l-4 border-line bg-surface p-4 shadow-sm shadow-ink/5 transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
-                colors.edge,
-              )}
-            >
-              <span className="flex items-center justify-between gap-3">
-                <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-xl", colors.icon)}>
-                  <Icon className="size-5" aria-hidden />
-                </span>
-                <ArrowRight className="size-4 shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-ink-soft" aria-hidden />
-              </span>
-              <span className="mt-4 text-3xl leading-none font-semibold tracking-tight tabular-nums text-ink">{counts[card.key].toLocaleString()}</span>
-              <span className="mt-2 text-sm leading-snug font-medium text-ink-soft">{card.label}</span>
-              <span className="mt-0.5 text-xs leading-snug text-muted">{card.hint}</span>
-            </Link>
-          );
-        })}
-      </section>
-    </div>
+    <DashboardView
+      role={member.role}
+      firstName={firstName}
+      scopeLabel={scopeLabel}
+      data={data}
+      tiles={tiles.map((tile) => ({ ...tile, href: listHref(tile.link) }))}
+      attention={attentionItems(member.role, data.now, (link: { step: CardKey } | { status: StatusKey }) => listHref(link), filter.sample ? 0 : waitingUsers)}
+      waiting={waiting}
+      waitingTitle={waitingTitle}
+      recent={recent}
+      choices={{ range: filter.range, type, enterprise: focus?.id, sample: filter.sample }}
+      particulars={particulars}
+      enterprises={enterprises}
+      focusLabel={focus?.label ?? null}
+      listHref={listHref()}
+    />
   );
 }
 
-/** NEPZA, NIS and Account: their menu as shortcut cards. */
+/** NIS (no import screens): their menu as shortcut cards. */
 function RoleHome({ user }: { user: Member }) {
   const groups = menuFor(user.role).filter((section) => section.items.length > 0);
   const firstName = user.fullName.split(" ")[0] || user.fullName;

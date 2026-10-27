@@ -102,15 +102,36 @@ Nothing: built to ARCHITECTURE.md from its first line (2026-10-06).
 | 42 | **Approval process: not built yet** — emails on every step (old: NEPZA told of LFZ approval, LFZ of NEPZA's decision, the enterprise of rejections and completion; needs mail settings), ~~"Download Document"~~ done 2026-10-19, the officers' "Save" (Saved by LFTZ / NEPZA), the enterprise's "Enterprise Submit" cover-letter step, and the same for exports. | Owner decides order |
 | 43 | **`npm audit --omit=dev` (2026-10-19): next — high** (cache poisoning in SSG/ISR, SSRF in image optimisation, dev-server and metadata-route information disclosure), **mssql → tedious → sprintf-js — moderate** (denial of service). DigiDocs uses neither ISR nor image optimisation, but upgrade Next.js through the hub's kit (CHILD-APP-SETUP-FOR-CLAUDE.md) and mssql when fixed versions are available. | Hub / owner |
 | 44 | **Kit v8: run the database commands on the test installation** (Claude ran none). In `.env.local`: `TEST_USER_EMAIL_DOMAINS="oneportal.test,edgeaxis.in"`, `ALLOW_SAMPLE_DATA=true`, and `MIGRATION_DATABASE_CONNECTION_STRING` if the connection string is the app's own login. Then `npm run db:migrate -- --status`, `npm run db:migrate`, `npm run db:seed` (prints "7 test users", "16 created"; a second run "16 already there"). In the hub: the same `TEST_USER_EMAIL_DOMAINS`, its `npm run db:seed`, and `npm run test-users:seed -- --file <this repository>/database/seed/test-users.json --app <DigiDocs's App ID>` for the three extras. Then sign in as Ismail (Lekki Port) and Khushiyal (Insignia): each sees 8 imports, one per status; Sameer (LFZ Admin) and Shaheem (NEPZA) see what their roles see; the timeline shows the steps a day apart. | Owner |
-| 45 | **`tests/unit/reference.test.ts`: 2 checks fail on a Windows checkout** (`core.autocrlf=true` turns the migrations' LF into CRLF; the test looks for `";\n"`). Fails the same without the v8 changes (checked 2026-10-27). Fix the test to accept `\r\n`, or add a `.gitattributes` (`*.sql text eol=lf`). Out of scope for the kit upgrade. | Next session |
+| 45 | ~~**`tests/unit/reference.test.ts`: 2 checks fail on a Windows checkout** (`core.autocrlf=true` turns the migrations' LF into CRLF; the test looks for `";\n"`).~~ **Done 2026-10-27**: the test's `migration()` reader turns `\r\n` into `\n`; the migrations are unchanged (153 unique currencies, 116 links — they were always right). | — |
 | 46 | **Old test users stay where they were seeded**: Ada LFZ Admin, Emeka and Efe Enterprise, Ngozi NEPZA left the file in v8 (decision log 2026-10-27), and seeds never delete. Remove them with `npm run data:clear -- --clear test-users --confirm <database>` and seed again, or leave them. In the hub, delete them only if no other application's file uses them. | Owner |
 | 47 | **Sample data gaps**: sample imports have no uploaded documents or letters (View shows none; "Download Document" has nothing to combine); no sample exports until Add Export exists — **Add Export must add sample exports in the same change** (hub guide §5.10 rule 9). | With Add Export |
 | 48 | On an installation that lists `edgeaxis.in`, the seed gives the team members the file's roles even if their DigiDocs accounts already existed (Sameer → LFZ Admin, Shaheem → NEPZA, Ismail and Khushiyal → Enterprise). Intended on a test installation; never set it where real people sign in. | Owner (awareness) |
 | 49 | CODEBASE-GUIDE.md §2 lists the migrations only up to 0007 (0008–0015 exist). Doc catch-up. | Next doc pass |
+| 50 | **Look at the new dashboard with real data** (after #44's `npm run db:seed`): as Sameer (LFZ Admin), Shaheem (NEPZA), Ismail and Khushiyal (Enterprise), Amaka (Account), at 375 and 1440 px; try each tile, the period, Particular and enterprise filters, and the sample switch. Only a sample-data preview was seen (screenshots, no database). | Owner |
+| 51 | Dashboard: exports are not counted (nothing creates one yet). With Add Export, add them (tiles or a switch Imports / Exports). "Stale" is 5 days without any change to the import (`STALE_DAYS` in `features/dashboard/series.ts`): adjust if LFZ works to another target. | With Add Export / owner |
 
 ---
 
 ## 4. Session log
+
+### 2026-10-27 — Dashboard like the suite's (Claude Code)
+
+- Owner: the dashboard was poor and incomplete; take Truck Park, HR and OnePortal's dashboards and "Show sample data" as the model, metrics and filters chosen by Claude. Read Truck Park's `dashboard-view.tsx` / `features/dashboard`, HR's home view, the hub's admin dashboard and sample series, and CHILD-APP-GUIDE §7.4.
+- Built (decision log 2026-10-27): `features/dashboard/series.ts` (shapes, `waitingOn` from the workflow rules, tiles per role, `attentionItems`, sample data), `queries.ts` (status now with stale counts, daily flow with in-process per day, period totals with review times, rankings, by-enterprise, waiting list, recent steps — all in the import list's scope, days by the database's clock), `schemas.ts` (range, sample), `app/(app)/dashboard-view.tsx`, `page.tsx` rewritten. Removed the old card grid's `cardCounts`, `dashboardCardsFor`, card colours and `countImportsByStatus`; `steps.ts` stays as the list's steps (roles widened to the tiles that open them). Tests: `tests/unit/dashboard.test.ts` (new), `menu.test.ts` updated; `/?sample=1` and `/?range=90&sample=1` added to the UI check.
+- **Ran:** typecheck, lint pass; `npm test` 182 of 182; build pass; `npm run test:ui` 1 passed, 21 skipped (signed-in pages need a hub and a database). A temporary preview page (sample data, no database; deleted afterwards) was screenshotted through the owner's running dev server on 3008 (a second dev server is refused): LFZ Admin at 1440 and 375 px, Enterprise and NEPZA at 1440 px — no sideways scroll. Fixed from them: the filter row on phones, sample rows in old statuses.
+- **Not checked:** the SQL against a database (no query has run), the real page signed in (#50).
+
+
+### 2026-10-27 (later) — Local setup from the hub session; reference test fixed (Claude Code)
+
+- `.env.local` created (from the hub's session, at the owner's request): port 3008, database
+  `NextOPDigiDocs` on the hub's SQL Server login, a generated App ID and secret, and the test
+  settings (`TEST_USER_EMAIL_DOMAINS`, `ALLOW_SAMPLE_DATA`, `ALLOW_DATA_CLEAR`). The hub registers
+  DigiDocs with that App ID and secret, and creates the three extra test users, from its own
+  `npm run db:seed` (`apps.local.json`) — no hub `test-users:seed` needed (#44).
+- #45 fixed in the test only (line endings). `npm test` 169/169, typecheck and lint clean.
+- **Not run:** any database command. The database `NextOPDigiDocs` may not exist yet: create it
+  before `npm run db:migrate`.
 
 ### 2026-10-27 — Kit v7 → v8: database commands, test team, sample data (Claude Code)
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { MENU, menuFor, menuItem, menuTrail } from "@/features/access/menu";
 import { ROLE_KEYS } from "@/features/access/roles";
 import { dashboardFilterSchema } from "@/features/dashboard/schemas";
-import { cardCounts, DASHBOARD_CARDS, dashboardCardsFor } from "@/features/dashboard/steps";
+import { DASHBOARD_CARDS } from "@/features/dashboard/steps";
 
 /* Pins the menu (features/access/menu.ts) and the dashboard's pure rules (features/dashboard). */
 
@@ -56,7 +56,7 @@ describe("menu", () => {
 });
 
 describe("dashboard", () => {
-  it("has the five cards of the LFZ design and the enterprise's saved card, each the sum of its statuses", () => {
+  it("opens the import list at the five steps of the LFZ design and the enterprise's saved imports", () => {
     expect(DASHBOARD_CARDS.map((card) => card.label)).toEqual([
       "Total Count",
       "Saved Transactions",
@@ -65,21 +65,12 @@ describe("dashboard", () => {
       "Approval pending from LFTZ",
       "Process Completed",
     ]);
-    expect(Object.values(cardCounts({}))).toEqual([0, 0, 0, 0, 0, 0]);
-    expect(cardCounts({ submitted: 2, lfz_saved: 1, nepza_rejected: 4, nepza_saved: 3, completed: 5, draft: 9 })).toEqual({
-      total: 15,
-      saved: 9,
-      "pending-lfz": 7,
-      "pending-nepza": 3,
-      "approval-lftz": 0,
-      completed: 5,
-    });
   });
 
   it("reads its address-bar choices, ignoring anything malformed", () => {
-    expect(dashboardFilterSchema.parse({ type: "nope", enterprise: "x" })).toEqual({});
+    expect(dashboardFilterSchema.parse({ type: "nope", enterprise: "x", range: "12", sample: "yes" })).toEqual({ range: 30, sample: false });
     const id = "0A000000-0000-4000-8000-000000000001";
-    expect(dashboardFilterSchema.parse({ type: id })).toEqual({ type: id.toLowerCase() });
+    expect(dashboardFilterSchema.parse({ type: id, range: "90", sample: "1" })).toEqual({ type: id.toLowerCase(), range: 90, sample: true });
   });
 });
 
@@ -97,13 +88,5 @@ describe("breadcrumbs (menuTrail)", () => {
 
   it("has a trail for every menu item", () => {
     for (const section of MENU) for (const item of section.items) expect(menuTrail(item.href).at(-1)?.label, item.href).toBe(item.label);
-  });
-});
-
-describe("dashboard cards per role", () => {
-  it("gives an LFZ Admin the five LFZ cards and an Enterprise user also their saved card", () => {
-    expect(dashboardCardsFor("lfz_admin").map((card) => card.key)).toEqual(["total", "pending-lfz", "pending-nepza", "approval-lftz", "completed"]);
-    expect(dashboardCardsFor("enterprise").map((card) => card.key)).toEqual(["total", "saved", "pending-lfz", "pending-nepza", "approval-lftz", "completed"]);
-    expect(dashboardCardsFor("nepza")).toEqual([]);
   });
 });

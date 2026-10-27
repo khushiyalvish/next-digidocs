@@ -8,7 +8,10 @@ import { hseSearchSchema } from "@/features/reference/schemas";
  * they must load as written, because nobody edits them after they are applied.
  */
 
-const migration = (name: string) => readFileSync(join(process.cwd(), "database", "migrations", name), "utf8");
+// Line endings normalised: Git on Windows checks the files out with CRLF (core.autocrlf), and the
+// helpers below look for ";\n".
+const migration = (name: string) =>
+  readFileSync(join(process.cwd(), "database", "migrations", name), "utf8").replace(/\r\n/g, "\n");
 
 /** The value tuples of the INSERT that starts at `marker`, as raw strings. */
 function tuples(sql: string, marker: string): string[] {

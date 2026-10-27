@@ -20,6 +20,8 @@ const SIGNED_OUT_PAGES = ["/sso/error"];
 // /exports/<id> and their /edit) need a record: none can be created before Add Import / Add Export.
 const SIGNED_IN_PAGES = [
   "/",
+  "/?sample=1",
+  "/?range=90&sample=1",
   "/reports",
   "/reports/operations",
   "/reports/amendments",

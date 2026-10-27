@@ -34,29 +34,6 @@ export async function listImports(member: Member, filter: ListFilter): Promise<L
 }
 
 /**
- * How many imports the member sees in each status, for the dashboard cards (old
- * GetDashBoardCount), filtered by transaction type and enterprise. The same scope as the list the
- * cards open: an Enterprise user counts only their own organisation's imports, whatever the
- * enterprise filter says.
- */
-export async function countImportsByStatus(
-  member: Member,
-  filter: { type?: string; enterprise?: string },
-): Promise<Partial<Record<StatusKey, number>>> {
-  const scope = listScope(member, { type: filter.type, enterprise: filter.enterprise, page: 1 });
-  if (scope.nothing) return {};
-  const rows = await db.query<{ status_key: StatusKey; total: number }>`
-    SELECT status_key, COUNT(*) AS total
-    FROM dbo.imports
-    WHERE deleted_at IS NULL
-      AND status_key IN (${scope.statuses})
-      AND (${scope.organisationId} IS NULL OR organisation_id = ${scope.organisationId})
-      AND (${scope.type} IS NULL OR transaction_type_id = ${scope.type})
-    GROUP BY status_key`;
-  return Object.fromEntries(rows.map((row) => [row.status_key, row.total]));
-}
-
-/**
  * One import for its view and edit pages, or null when it does not exist, is hidden, or is out of
  * the member's reach (a status their role does not see; for an Enterprise user, another
  * organisation's): the page then answers 404, never "forbidden".
