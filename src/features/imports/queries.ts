@@ -1,5 +1,5 @@
 import "server-only";
-import { db } from "@/lib/db";
+import { db, type Db } from "@/lib/db";
 import type { Member } from "@/features/auth/guards";
 import { LIST_PAGE_SIZE, listScope, toListPage, type ListFilter, type ListPage, type ListRow, type ListRowDto } from "@/features/workflow/list";
 import { OTHERS_DOCUMENT_LEGACY_ID, type DocumentSlot, type UploadedFile } from "@/features/imports/documents";
@@ -646,4 +646,14 @@ export async function listImportStoredFiles(importId: string): Promise<Map<strin
   const rows = await db.query<{ id: string; stored_name: string; content_type: string }>`
     SELECT id, stored_name, content_type FROM dbo.import_documents WHERE import_id = ${importId}`;
   return new Map(rows.map((row) => [row.id.toLowerCase(), { storedName: row.stored_name, contentType: row.content_type }]));
+}
+
+/**
+ * The import with this tracking number that is not hidden, in the caller's transaction: the sample
+ * data's seed skips one that exists. A hidden one frees its tracking number (0008), so the seed
+ * loads that sample again.
+ */
+export async function findImportIdByTrackingNumber(tx: Db, trackingNumber: string): Promise<string | null> {
+  const [row] = await tx.query<{ id: string }>`SELECT id FROM dbo.imports WHERE tracking_number = ${trackingNumber} AND deleted_at IS NULL`;
+  return row ? row.id.toLowerCase() : null;
 }

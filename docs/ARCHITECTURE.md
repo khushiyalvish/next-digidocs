@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** adopted 2026-10-06 from the OnePortal hub's architecture (suite kit v7 since 2026-10-07; decision log
+**Status:** adopted 2026-10-06 from the OnePortal hub's architecture (suite kit v8 since 2026-10-27; decision log
 §12). This is the contract the code follows. A deviation needs an explicit decision, recorded in
 the decision log.
 **Related:** [PROGRESS.md](./PROGRESS.md) — where things stand and what each session found.
@@ -57,7 +57,7 @@ Project-specific:
 | **Server action** | Everything a signed-in person does from a DigiDocs page | `src/features/<feature>/actions.ts` (`"use server"`) | From an `<ActionForm action={…}>` (`features/users`, `features/organisations`) |
 | **Page** (server component) | Reading data for a screen | `src/app/**/page.tsx` | Browser navigation |
 | **Route handler** | The sign-in round trip through OnePortal, started by a browser redirect; "Back to OnePortal" | `src/app/sso/login/route.ts`, `src/app/sso/callback/route.ts`, `src/app/sso/leave/route.ts` | `GET` redirect / plain link |
-| **Script** | Operator tasks on a test installation, run by a person | `scripts/seed-test-users.ts`, `scripts/clear-data.ts`, `scripts/grant-admin.ts` | `npm run test-users:seed`, `npm run data:clear`, `npm run admin:grant` |
+| **Script** | Operator tasks, run by a person (the seeds and the clear command on a test installation only) | `scripts/migrate.ts` (kit), `scripts/seed.ts`, `scripts/seed-test-users.ts`, `scripts/clear-data.ts`, `scripts/grant-admin.ts` | `npm run db:migrate`, `npm run db:seed`, `npm run test-users:seed`, `npm run data:clear`, `npm run admin:grant` |
 | **Proxy** | Remembering where a signed-out person was going (convenience, not security) | `src/proxy.ts` | Every request outside `/sso/`, `/api/`, `/_next/`, static files |
 
 The rule that decides the kind: **who starts the request.** DigiDocs's own pages → server action.
@@ -91,9 +91,9 @@ database/
   migrations/        numbered .sql files — the schema's source of truth, run by a person
   setup/             one-time DBA script: database + least-privilege app login
   maintenance/       idempotent housekeeping (purge expired sessions)
-  seed/              test-users.json: the test users (hub CHILD-APP-GUIDE §5.8)
+  seed/              test-users.json (the test team + extras, hub CHILD-APP-GUIDE §5.8), sample-data.json (§5.10)
 docs/                these documents
-scripts/             operator commands: test-users seed, data clear
+scripts/             operator commands: db:migrate (kit), db:seed, test-users seed, data clear, admin grant
 logs/                PM2's log files (only logs/.gitignore is tracked)
 ecosystem.config.cjs PM2 configuration — suite kit
 src/
@@ -123,11 +123,11 @@ src/
   components/        shared UI: ui/ (primitives), forms/ (ActionForm), shell/ (top bar) — suite kit
   lib/               cross-cutting plumbing: config, db, result, schemas, tokens, urls, test-users, data-clear — suite kit
 tests/
-  unit/              pure rules, no database (npm test): themes, charts, SQL names, test users
+  unit/              pure rules, no database (npm test): themes, charts, SQL names, migrations, test users, sample data
   ui/                screen-size rules in a real browser (npm run test:ui)
 ```
 
-**Suite kit files** carry a `// Suite kit v7: …` header. *Copied* ones are changed in the hub
+**Suite kit files** carry a `// Suite kit vN: …` header (the version that last changed them). *Copied* ones are changed in the hub
 first, then copied here; *adapted* ones (config, session, guards, user menu, `/sso` layout,
 404 page, Playwright config, the UI and SQL-naming checks) merge hub changes by hand.
 
@@ -147,7 +147,7 @@ Who writes what:
 | `organisations` | `features/organisations/writes.ts` (seeded by migration 0003) |
 | `audit_events` | `features/audit/record.ts` |
 | `banks`, `clearing_agents`, `ports` | `features/masters/writes.ts` (the Master screens; rows from 0004 plus those LFZ Admins add) |
-| `imports` and its lines `import_bl_numbers`, `import_invoices`, `import_containers`, `import_items`, `import_documents`, `import_status_history` | `features/imports/writes.ts`: `moveImportStatus` and `recordImportStep` (the approval process, 0015), `createImport` (Particular chosen: draft + tracking number), `saveImportForm` (draft or submit; lines replaced as a whole; references checked first by `checkImportReferences`; the old rules and calculations applied by `rules.ts`; item rates copied from the HSE code), `addImportDocument` / `removeImportDocumentRow` (uploads; the files themselves through `features/imports/document-storage.ts` only), `hideImport` (Delete). Migrations 0007, 0008, 0009, 0011, 0013, 0014, 0015 |
+| `imports` and its lines `import_bl_numbers`, `import_invoices`, `import_containers`, `import_items`, `import_documents`, `import_status_history` | `features/imports/writes.ts`: `moveImportStatus` and `recordImportStep` (the approval process, 0015), `createImport` (Particular chosen: draft + tracking number), `saveImportForm` (draft or submit; lines replaced as a whole; references checked first by `checkImportReferences`; the old rules and calculations applied by `rules.ts`; item rates copied from the HSE code), `addImportDocument` / `removeImportDocumentRow` (uploads; the files themselves through `features/imports/document-storage.ts` only), `hideImport` (Delete); for the sample data only, `createImport`'s optional fixed tracking number and `backdateSampleImport`. Migrations 0007, 0008, 0009, 0011, 0013, 0014, 0015 |
 | `exports` | `features/exports/writes.ts` — so far only `hideExport` (Delete from the list, 0008); Add Export brings the inserts and updates. Migration 0007 made the table |
 | Other reference lists: `hse_codes`, `countries`, `currencies`, `nigerian_states`, `free_zones`, `measurement_units`, `document_types`, `transaction_types`, `transaction_type_documents`, `key_info_fields`, `transaction_type_key_fields` | **No writer in the app**: migrations 0004–0006, 0010 |
 | `user_sessions` | `features/auth/session.ts` |
@@ -155,7 +155,11 @@ Who writes what:
 ### The database schema
 
 The source of truth is `database/migrations/NNNN_name.sql`, applied in order by a person with a
-DDL-capable account (`sqlcmd -S <server> -d DigiDocsOPNext -E -b -i <file>`). Each file runs in one
+DDL-capable account: `npm run db:migrate` (the kit's `src/lib/migrate.ts`; it connects with
+`MIGRATION_DATABASE_CONNECTION_STRING`, applies what `dbo.schema_migrations` lacks, stops at the
+first failure) or `sqlcmd -S <server> -d DigiDocsOPNext -E -b -f 65001 -i <file>`. A unit check
+refuses a file not named `NNNN_words.sql`, a number used twice, or a file that does not record its
+own number. Each file runs in one
 transaction, records itself in `dbo.schema_migrations`, does nothing if already applied, and is
 **never edited once applied anywhere**. From 0006 on a migration is pure ASCII (other characters as
 `NCHAR(code)`; a unit check enforces it), and `sqlcmd` is always run with `-f 65001`: without it the
@@ -290,17 +294,30 @@ conditional `UPDATE … OUTPUT`. A first sign-in racing another creates the row 
 None in the web process. `database/maintenance/purge_expired.sql` deletes expired sessions;
 idempotent, scheduled by the operator.
 
-### 8d. Test installations (kit v6)
+### 8d. Test installations (kit v6; the test team and sample data since v8)
 
-- **Test users** (hub guide §5.8): `database/seed/test-users.json` lists them with fixed hub ids
-  and `@oneportal.test` addresses; `npm run test-users:seed` creates or refreshes them in one
-  transaction through `saveTestUser`, which only ever touches rows whose address is a test
-  address. The hub creates the same people from the same file. A new role or relationship gets a
-  test user in the same change. Run by a person on a test installation, never by the app.
+- **Test users** (hub guide §5.8): `database/seed/test-users.json` holds the suite's test team
+  (the hub's ids, addresses and names, `@edgeaxis.in`; a unit check pins them) with their DigiDocs
+  roles, and DigiDocs's own extras (`digidocs.*@oneportal.test`). `seedTestUsers`
+  (`features/auth/test-user-seed.ts`) creates or refreshes them through `saveTestUser`, which only
+  ever touches rows whose address is at a `TEST_USER_EMAIL_DOMAINS` domain (default
+  `oneportal.test`; a test installation that seeds the team lists `edgeaxis.in` too, and then
+  every `@edgeaxis.in` account there counts as a test user). A new role or relationship gets a
+  test user in the same change.
+- **Sample data** (hub guide §5.10): `npm run db:seed` runs `seedTestUsers` and then
+  `seedSampleData` (`features/sample-data/seed.ts`) in one transaction, refused unless
+  `ALLOW_SAMPLE_DATA=true`: 16 imports from `database/seed/sample-data.json`, each started,
+  filled in, submitted and reviewed through the imports writers and the form's rules, with the
+  fixed tracking number `SAMPLE-NNNN` (real ones contain `/`), then moved back 2–86 days in SQL.
+  Idempotent (an existing sample is skipped); no uploaded files and no audit events. A new table
+  people work in gets sample records in the same change.
 - **Clearing** (hub guide §5.9): `npm run data:clear` empties chosen parts
-  (`src/features/maintenance/clear-parts.ts`: `test-users`, `people`, `sessions`). It refuses
-  unless `ALLOW_DATA_CLEAR=true`, counts without `--confirm`, and deletes only when `--confirm`
-  names the database the connection is really in. A new table gets a part in the same change.
+  (`src/features/maintenance/clear-parts.ts`: `sample-data`, `imports-exports`, `test-users`,
+  `people`, `sessions`, `audit`). It refuses unless `ALLOW_DATA_CLEAR=true`, counts without
+  `--confirm`, and deletes only when `--confirm` names the database the connection is really in.
+  A new table gets a part in the same change.
+- Every database command is run by a person, never by the application at start-up and never by
+  Claude Code.
 
 ### 8e. Configuration and secrets
 
@@ -337,7 +354,7 @@ screens are re-designed here to this document; only reference data is copied (as
 |---|---|---|
 | `npm run typecheck` | Route types (`next typegen`) + TypeScript | — |
 | `npm run lint` | ESLint (Next.js core-web-vitals + TypeScript rules) | — |
-| `npm test` | `tests/unit`: every theme complete and readable (WCAG contrast, chart colours); the charts' arithmetic; schema names (no keyword or SSMS-highlighted word); the test-users file parses with DigiDocs's schema; clear parts have unique keys | — |
+| `npm test` | `tests/unit`: every theme complete and readable (WCAG contrast, chart colours); the charts' arithmetic; schema names (no keyword or SSMS-highlighted word); migration file names and self-recording; the test-users file parses with DigiDocs's schema and holds the test team as the hub has it; the sample-data file parses, is owned by Enterprise test users and follows the workflow; clear parts have unique keys | — |
 | `npm run build` | Production build | — (no runtime settings needed) |
 | `npm run test:ui` | `tests/ui`: every page at 320–2560 px — no sideways scroll, inputs ≥ 16 px on phones, controls ≥ 36 px on phones and ≥ 24 px elsewhere | `npm run build` first; Microsoft Edge installed. Signed-in pages also need `UI_BASE_URL` (DigiDocs running with a database), a running OnePortal, and `E2E_EMAIL`/`E2E_PASSWORD` of a hub user with access to DigiDocs |
 
@@ -359,7 +376,7 @@ check** — unless the rule genuinely changed, in which case change both and say
 | 7 | `purge_expired.sql` runs daily (or at least weekly) | The sessions table grows; nothing breaks |
 | 8 | Several instances need no sticky sessions | All state is in the database |
 | 9 | On a server it runs under PM2 from `ecosystem.config.cjs` (`npm run pm2:start`, `pm2:reload` after a deploy; `pm2 save` + `pm2 startup`), behind the reverse proxy that does HTTPS | It does not come back after a crash or reboot |
-| 10 | `ALLOW_DATA_CLEAR` is never set, and the test-users seed never run, where real people sign in | Test accounts or data loss on a live installation |
+| 10 | `ALLOW_DATA_CLEAR` and `ALLOW_SAMPLE_DATA` are never set, `TEST_USER_EMAIL_DOMAINS` stays at its default, and no seed is run, where real people sign in | Test accounts, sample imports or data loss on a live installation; real `@edgeaxis.in` accounts treated as test users |
 | 11 | The first LFZ Admin is made with `npm run admin:grant` after they opened DigiDocs once | Nobody can assign roles |
 
 ---
@@ -417,3 +434,7 @@ Append when a decision is made or reversed. **Never rewrite history — add an e
 | 2026-10-19 | **Duties are rates only**: Duty %, LVY %, EXC %, VAT % are the HSE code's rates, shown and copied onto the item (0013); no amounts. The old form never calculated amounts (its Duty column read a field the server never sent, so it saved 0; LVY and EXC were never filled; "VAT" saved the rate). The value columns of 0013 (`import_duty_value`, `levy_value`, `excise_value`, `vat_value`) stay unused (NULL) | Owner chose "rates only, as old" over calculating amounts. |
 | 2026-10-19 | **The import View page and the approval process** (old ViewImpExp, UpdateApplicantStatus, EnterpriseLetter, ImpExp_Status_U; read in full). View page for everyone the list shows the import to: summary, the import as submitted (key information with the Particular's labels, documents and review letters, invoices, containers, items with their stored calculations), a timeline of every step (migration **0015**, `import_status_history`; old T_ImpExpProcess), and an action panel with only the steps the role may take at the status (`features/workflow/review.ts`): LFZ Admin at Submitted / Saved by LFTZ / Rejected by NEPZA approves with the LFZ Letter (→ Approved by LFTZ) or rejects with a reason (→ Rejected by LFTZ, the enterprise edits and resubmits); NEPZA at Approved by LFTZ / Saved by NEPZA approves with the NEPZA Letter (→ Approved by NEPZA) or rejects (→ Rejected by NEPZA); LFZ Admin at Approved by NEPZA gives final approval with the LFZ Approval Letter (→ Process Completed) or rejects the NEPZA Letter (→ Rejected Nepza Letter), after which NEPZA re-submits a new letter. Each step asks in a popup for its letter and/or reason and goes to `POST /api/imports/<id>/review`, which moves the status only from the status it was offered at; every letter is kept. Not carried over (for now): the officers' "Save" (statuses Saved by LFTZ / NEPZA are never reached), the generated approval letter with signature (owner: LFZ uploads it), emails (owner: later), "Download Document" (all files as one PDF) and the enterprise's "Enterprise Submit" cover-letter step | Owner: "start working on the view page, simple and good looking, with the approval process while uploading files for admin and NEPZA"; chose an uploaded final letter, emails later, and the NEPZA-letter loop. |
 | 2026-10-19 | **"Download Document": one PDF of an import's files**, built on the server (`features/imports/combined-pdf.ts`, `GET /api/imports/<id>/combined-pdf`) instead of in the browser as old mergePageToPdfAndDownload did: documents in the page's order, the Duty Paid File, the review letters; PDFs page by page, PNG/JPEG one per page scaled to fit; named after the tracking number. **Changed from old:** a first page lists what is in the file and what was left out and why (ZIP, GIF, TIFF, unreadable or missing files; old dropped them silently); at most 60 MB of files are combined. New dependency **pdf-lib 1.17.1** (exact; pure JavaScript, the library the old page used). Button in the View page's header when the import has a file | Owner chose it as the next piece. |
+| 2026-10-27 | **Kit v7 → v8** (hub CHILD-APP-GUIDE §3.5): the same database commands as every suite application, the suite's test team, sample data. Re-copied `src/lib/test-users.ts`; new `src/lib/migrate.ts`, `scripts/migrate.ts`, `tests/unit/migrate.test.ts`; `config.ts` merged (`TEST_USER_EMAIL_DOMAINS`, `MIGRATION_DATABASE_CONNECTION_STRING`, and DigiDocs's own `ALLOW_SAMPLE_DATA` with its start-up warning) | Keep DigiDocs identical to the rest of the suite; the hub moved to v8 on 2026-10-27. |
+| 2026-10-27 | **Database commands `db:migrate`, `db:seed` from the kit v8** (`db:migrate` is the kit's runner, unchanged; `db:seed` = test users, then sample data); `sqlcmd` stays the alternative for one file. Run by the owner only | Hub guide §3.7: the same command does the same thing in every suite application. |
+| 2026-10-27 | **Test users are the suite's test team**: Sameer Bidi LFZ Admin, Shaheem Shaikh NEPZA User, Ismail Chaudhary Enterprise User of Lekki Port (LPLELTD), Khushiyal Vishwakarma Enterprise User of Insignia (INS); kept as DigiDocs-only extras (same ids): Nnamdi NIS, Amaka Account, Wale Waiting (no role). Dropped from the file: Ada LFZ Admin, Emeka and Efe Enterprise, Ngozi NEPZA (the seed never deletes: on an installation that had them they stay until `data:clear --clear test-users`) | Owner chose "two enterprises" (2026-10-27): the team covers the reviewing roles and both organisations' scoping; every role still has somebody. |
+| 2026-10-27 | **Sample data: 16 imports, every status the workflow reaches, for both enterprises**, written through the imports writers and the form's rules (not INSERTs of its own); `createImport` takes an optional fixed tracking number (`SAMPLE-NNNN`, the marker the `sample-data` clear part removes) and `backdateSampleImport` spreads them over the last 90 days in SQL. Not sampled: Saved by LFTZ / NEPZA and Enterprise Submit (nothing reaches them), exports (no writer creates one before Add Export), uploaded files and letters, audit events (never fabricated) | Owner chose "16 imports" (2026-10-27); hub guide §5.10. |

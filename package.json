@@ -9,6 +9,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
+    "db:migrate": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/migrate.ts",
+    "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed.ts",
     "admin:grant": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/grant-admin.ts",
     "test-users:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed-test-users.ts",
     "data:clear": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/clear-data.ts",

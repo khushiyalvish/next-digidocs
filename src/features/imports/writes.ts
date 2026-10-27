@@ -38,18 +38,20 @@ export async function hideImport(
  * Creates a draft import when the Particular is chosen, with its tracking number: the
  * organisation's short code / the Particular's short code / YYYYMM + a 5-digit running number
  * (old GenerateTrackingNo). Only an active import Particular and an active organisation; null
- * otherwise.
+ * otherwise. `trackingNumber` is for the sample data only (`npm run db:seed`): its fixed
+ * SAMPLE-NNNN key instead of the running number (hub CHILD-APP-GUIDE.md §5.10).
  */
 export async function createImport(
   db: Db,
-  input: { organisationId: string; accountId: string; transactionTypeId: string },
+  input: { organisationId: string; accountId: string; transactionTypeId: string; trackingNumber?: string },
 ): Promise<{ id: string; trackingNumber: string } | null> {
   const [row] = await db.query<{ id: string; tracking_number: string }>`
     DECLARE @running INT = NEXT VALUE FOR dbo.import_tracking_numbers;
     INSERT INTO dbo.imports (organisation_id, created_by_account_id, transaction_type_id, tracking_number, status_key)
     OUTPUT inserted.id, inserted.tracking_number
     SELECT o.id, ${input.accountId}, t.id,
-           CONCAT(o.short_code, '/', t.short_code, '/', FORMAT(SYSDATETIMEOFFSET(), 'yyyyMM'), FORMAT(@running, '00000')),
+           COALESCE(${input.trackingNumber ?? null},
+                    CONCAT(o.short_code, '/', t.short_code, '/', FORMAT(SYSDATETIMEOFFSET(), 'yyyyMM'), FORMAT(@running, '00000'))),
            'draft'
     FROM dbo.organisations o
     JOIN dbo.transaction_types t ON t.id = ${input.transactionTypeId} AND t.direction = 'import' AND t.is_active = 1
@@ -224,4 +226,35 @@ export async function recordImportStep(
     INSERT INTO dbo.import_status_history (import_id, status_key, decision, reason, letter_document_id, actor_account_id, actor_name, actor_role)
     VALUES (${input.importId}, ${input.statusKey}, ${input.decision}, ${input.reason ?? null}, ${input.letterDocumentId ?? null},
             ${input.actor.id}, ${input.actor.name.slice(0, 200)}, ${input.actor.role})`;
+}
+
+/** The marker of a sample import's tracking number (`npm run db:seed`, hub CHILD-APP-GUIDE.md §5.10). Real ones contain "/". */
+export const SAMPLE_TRACKING_PREFIX = "SAMPLE-";
+
+/**
+ * Sample data only: moves a sample import back in time, so lists and the dashboard show a spread
+ * over the last weeks. It was created `daysAgo` days ago, each timeline step a day after the one
+ * before (steps in the order they were recorded); the form was saved and submitted on the second
+ * day. Only an import whose tracking number is a sample's. Instants are computed in SQL.
+ */
+export async function backdateSampleImport(db: Db, input: { importId: string; daysAgo: number }): Promise<boolean> {
+  const rows = await db.query`
+    UPDATE dbo.imports
+    SET created_at = DATEADD(DAY, -${input.daysAgo}, SYSDATETIMEOFFSET()),
+        form_saved_at = CASE WHEN form_saved_at IS NULL THEN NULL ELSE DATEADD(DAY, 1 - ${input.daysAgo}, SYSDATETIMEOFFSET()) END,
+        submitted_at = CASE WHEN submitted_at IS NULL THEN NULL ELSE DATEADD(DAY, 1 - ${input.daysAgo}, SYSDATETIMEOFFSET()) END,
+        updated_at = DATEADD(DAY,
+          (SELECT COUNT(*) FROM dbo.import_status_history h WHERE h.import_id = ${input.importId}) - 1 - ${input.daysAgo},
+          SYSDATETIMEOFFSET())
+    OUTPUT inserted.id
+    WHERE id = ${input.importId} AND tracking_number LIKE ${`${SAMPLE_TRACKING_PREFIX}%`} AND tracking_number NOT LIKE '%/%'`;
+  if (rows.length === 0) return false;
+  await db.query`
+    WITH steps AS (
+      SELECT created_at, ROW_NUMBER() OVER (ORDER BY created_at, id) - 1 AS step_number
+      FROM dbo.import_status_history
+      WHERE import_id = ${input.importId}
+    )
+    UPDATE steps SET created_at = DATEADD(DAY, step_number - ${input.daysAgo}, SYSDATETIMEOFFSET())`;
+  return true;
 }

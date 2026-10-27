@@ -39,16 +39,16 @@ export async function findOrCreateUser(hubUser: OnePortalUser): Promise<string |
 /**
  * Creates a test user's row or brings it in line with database/seed/test-users.json (hub
  * CHILD-APP-GUIDE.md §5.8). Keyed on the hub id, and it cannot touch a real person's row: it only
- * updates rows whose address is a test address. Returns the account id, or null when the id
- * belongs to a real person here. Role and organisation are then set by the seed through
- * features/users/writes.ts (the writer of the access columns).
+ * updates rows whose address is at one of `domains` (the installation's TEST_USER_EMAIL_DOMAINS).
+ * Returns the account id, or null when the id belongs to a real person here. Role and organisation
+ * are then set by the seed through features/users/writes.ts (the writer of the access columns).
  */
-export async function saveTestUser(db: Db, user: AppTestUser): Promise<string | null> {
+export async function saveTestUser(db: Db, user: AppTestUser, domains: readonly string[]): Promise<string | null> {
   const [updated] = await db.query<{ id: string }>`
     UPDATE dbo.user_accounts
     SET email = ${user.email}, full_name = ${user.fullName}, updated_at = SYSDATETIMEOFFSET()
     OUTPUT inserted.id
-    WHERE hub_user_id = ${user.id} AND email LIKE '%@oneportal.test'`;
+    WHERE hub_user_id = ${user.id} AND SUBSTRING(email, CHARINDEX('@', email) + 1, 254) IN (${domains})`;
   if (updated) return updated.id.toLowerCase();
 
   const [created] = await db.query<{ id: string }>`

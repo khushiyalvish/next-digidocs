@@ -1,7 +1,8 @@
-// Suite kit v7: adapted from OnePortal src/lib/config.ts (OnePortal settings added; mail, passwords and TEST_USER_PASSWORD removed). Merge hub changes by hand.
+// Suite kit v8: adapted from OnePortal src/lib/config.ts (OnePortal settings and ALLOW_SAMPLE_DATA added; mail, passwords and TEST_USER_PASSWORD removed). Merge hub changes by hand.
 import "server-only";
 import path from "node:path";
 import { z } from "zod";
+import { DEFAULT_TEST_USER_EMAIL_DOMAINS } from "@/lib/test-users";
 
 /**
  * The one place settings are read (ARCHITECTURE.md §8e). Nothing else reads process.env.
@@ -17,6 +18,8 @@ const booleanString = z
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+
 const settingsSchema = z
   .object({
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -30,6 +33,10 @@ const settingsSchema = z
     // Server=localhost,1433;Database=DigiDocsOPNext;User Id=digidocs_app;Password=...;Encrypt=true
     DATABASE_CONNECTION_STRING: z.string().min(1),
 
+    // Only for `npm run db:migrate`: an account that may change the schema. The app's own login
+    // has no DDL rights (database/setup/create_database.sql). Unset: DATABASE_CONNECTION_STRING.
+    MIGRATION_DATABASE_CONNECTION_STRING: z.string().min(1).optional(),
+
     // Public base URL of this application, e.g. https://digidocs.example.com.
     // Never derived from the request's Host header, which the client controls.
     APP_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
@@ -41,6 +48,25 @@ const settingsSchema = z
     // "true" lets `npm run data:clear` delete this database's data. For a test installation
     // only: the server says so in its log at every start (getConfig, below).
     ALLOW_DATA_CLEAR: booleanString.default(false),
+
+    // "true" lets `npm run db:seed` load the test team and sample data into this database (hub
+    // CHILD-APP-GUIDE.md §5.10). For a test installation only: the server says so in its log at
+    // every start (getConfig, below).
+    ALLOW_SAMPLE_DATA: booleanString.default(false),
+
+    // The email domains whose accounts the seeds and `data:clear --clear test-users` may create,
+    // change or delete (src/lib/test-users.ts). Comma-separated. A test installation may add the
+    // organisation's domain ("oneportal.test,example.com"); then every account at that domain on
+    // THIS database counts as a test user. Leave it at the default where real people sign in.
+    TEST_USER_EMAIL_DOMAINS: z
+      .string()
+      .default(DEFAULT_TEST_USER_EMAIL_DOMAINS.join(","))
+      .transform((value) => [...new Set(value.split(",").map((domain) => domain.trim().toLowerCase()).filter(Boolean))])
+      .pipe(
+        z
+          .array(z.string().regex(DOMAIN_PATTERN, "Each entry must be a domain such as oneportal.test (no @, no spaces)"))
+          .min(1, "List at least one domain"),
+      ),
 
     // Sign-in through OnePortal (hub CHILD-APP-GUIDE.md §5.1). The App ID and secret come from
     // the hub's Administration → Applications → Register application screen.
@@ -88,6 +114,7 @@ function toConfig(settings: z.infer<typeof settingsSchema>) {
   return {
     isProduction: settings.NODE_ENV === "production",
     databaseConnectionString: settings.DATABASE_CONNECTION_STRING,
+    migrationConnectionString: settings.MIGRATION_DATABASE_CONNECTION_STRING ?? settings.DATABASE_CONNECTION_STRING,
     appUrl: settings.APP_URL,
     appName: settings.APP_NAME,
     organizationName: settings.ORGANIZATION_NAME,
@@ -95,6 +122,8 @@ function toConfig(settings: z.infer<typeof settingsSchema>) {
     secureCookies: settings.APP_URL.startsWith("https://"),
     sessionTtlHours: settings.SESSION_TTL_HOURS,
     allowDataClear: settings.ALLOW_DATA_CLEAR,
+    allowSampleData: settings.ALLOW_SAMPLE_DATA,
+    testUserEmailDomains: settings.TEST_USER_EMAIL_DOMAINS,
     onePortal: {
       url: settings.ONEPORTAL_URL,
       appId: settings.ONEPORTAL_APP_ID,
@@ -126,6 +155,17 @@ export function getConfig(): Config {
     // Once per process, at server start (src/instrumentation.ts reads the settings then).
     console.warn(
       "ALLOW_DATA_CLEAR is true: `npm run data:clear` can delete this database's data. For testing only — remove the setting before real people use this installation.",
+    );
+  }
+  if (cached.allowSampleData) {
+    console.warn(
+      "ALLOW_SAMPLE_DATA is true: `npm run db:seed` can load test users and sample data into this database. For testing only — remove the setting before real people use this installation.",
+    );
+  }
+  const realDomains = cached.testUserEmailDomains.filter((domain) => !DEFAULT_TEST_USER_EMAIL_DOMAINS.includes(domain));
+  if (realDomains.length > 0) {
+    console.warn(
+      `TEST_USER_EMAIL_DOMAINS includes ${realDomains.join(", ")}: the test-user seeds and \`data:clear --clear test-users\` treat every account there as a test user. For testing only — remove the setting before real people use this installation.`,
     );
   }
   return cached;

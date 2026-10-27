@@ -1,0 +1,50 @@
+{
+  "shipments": {
+    "lekki-sea-equipment": {
+      "particularLegacyId": 3, "shippingMode": "sea", "countryLegacyId": 17, "portLegacyId": 103, "clearingAgentLegacyId": 1, "currency": "USD", "freight": 18500, "insurance": 2400, "airQuantity": null, "totalCbm": null, "description": "Spare parts and tyres for the terminal's gantry cranes and reach stackers", "supplier": "Harbourline Equipment BV", "containerSizes": ["40", "40", "20"],
+      "items": [
+        { "name": "Gantry crane spare parts", "hseCode": "8426190000", "unitLegacyId": 4, "quantity": 12, "fob": 148000 },
+        { "name": "Reach stacker tyres", "hseCode": "4011200000", "unitLegacyId": 4, "quantity": 48, "fob": 21600 }
+      ]
+    },
+    "lekki-air-controls": {
+      "particularLegacyId": 17, "shippingMode": "air", "countryLegacyId": 29, "portLegacyId": 266, "clearingAgentLegacyId": 4, "currency": "USD", "freight": 3200, "insurance": 260, "airQuantity": 380, "totalCbm": 2.4, "description": "Crane control units and portable computers for the quay", "supplier": "Kingsway Port Systems Ltd", "containerSizes": [],
+      "items": [
+        { "name": "Quay crane control units", "hseCode": "8426190000", "unitLegacyId": 4, "quantity": 4, "fob": 32000 },
+        { "name": "Portable computers", "hseCode": "8471309000", "unitLegacyId": 9, "quantity": 10, "fob": 9500 }
+      ]
+    },
+    "insignia-sea-paper": {
+      "particularLegacyId": 3, "shippingMode": "sea", "countryLegacyId": 46, "portLegacyId": 103, "clearingAgentLegacyId": 2, "currency": "USD", "freight": 3800, "insurance": 450, "airQuantity": null, "totalCbm": null, "description": "Coated printing paper in reels, and offset ink", "supplier": "Northbridge Paper Mills Ltd", "containerSizes": ["40", "40"],
+      "items": [
+        { "name": "Coated printing paper reels, 80 g/m2", "hseCode": "4802570000", "unitLegacyId": 1, "quantity": 24000, "fob": 26400 },
+        { "name": "Offset black ink", "hseCode": "3215110000", "unitLegacyId": 3, "quantity": 120, "fob": 6600 }
+      ]
+    },
+    "insignia-air-inks": {
+      "particularLegacyId": 17, "shippingMode": "air", "countryLegacyId": 9, "portLegacyId": 266, "clearingAgentLegacyId": 3, "currency": "EUR", "freight": 2100, "insurance": 180, "airQuantity": 450, "totalCbm": 3.2, "description": "Security printing inks and a press control computer", "supplier": "Rhein Druckfarben GmbH", "containerSizes": [],
+      "items": [
+        { "name": "Security and offset inks", "hseCode": "3215110029", "unitLegacyId": 3, "quantity": 40, "fob": 9800 },
+        { "name": "Press control computer", "hseCode": "8471309000", "unitLegacyId": 9, "quantity": 2, "fob": 3400 }
+      ]
+    }
+  },
+  "imports": [
+    { "trackingNumber": "SAMPLE-0001", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-sea-equipment", "status": "draft", "daysAgo": 2, "reason": null },
+    { "trackingNumber": "SAMPLE-0002", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-air-inks", "status": "draft", "daysAgo": 4, "reason": null },
+    { "trackingNumber": "SAMPLE-0003", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-air-controls", "status": "submitted", "daysAgo": 6, "reason": null },
+    { "trackingNumber": "SAMPLE-0004", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-sea-paper", "status": "submitted", "daysAgo": 9, "reason": null },
+    { "trackingNumber": "SAMPLE-0005", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-sea-equipment", "status": "lfz_rejected", "daysAgo": 12, "reason": "The packing list quantities do not match the invoice. Please correct them and submit again." },
+    { "trackingNumber": "SAMPLE-0006", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-air-inks", "status": "lfz_rejected", "daysAgo": 15, "reason": "The packing list quantities do not match the invoice. Please correct them and submit again." },
+    { "trackingNumber": "SAMPLE-0007", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-air-controls", "status": "lfz_approved", "daysAgo": 18, "reason": null },
+    { "trackingNumber": "SAMPLE-0008", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-sea-paper", "status": "lfz_approved", "daysAgo": 22, "reason": null },
+    { "trackingNumber": "SAMPLE-0009", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-sea-equipment", "status": "nepza_rejected", "daysAgo": 27, "reason": "The consignment value on the LFZ letter differs from the invoice total." },
+    { "trackingNumber": "SAMPLE-0010", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-air-inks", "status": "nepza_rejected", "daysAgo": 31, "reason": "The consignment value on the LFZ letter differs from the invoice total." },
+    { "trackingNumber": "SAMPLE-0011", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-air-controls", "status": "nepza_approved", "daysAgo": 36, "reason": null },
+    { "trackingNumber": "SAMPLE-0012", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-sea-paper", "status": "nepza_approved", "daysAgo": 41, "reason": null },
+    { "trackingNumber": "SAMPLE-0013", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-sea-equipment", "status": "nepza_letter_rejected", "daysAgo": 48, "reason": "The NEPZA letter names another enterprise. Please upload a corrected letter." },
+    { "trackingNumber": "SAMPLE-0014", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-air-inks", "status": "nepza_letter_rejected", "daysAgo": 55, "reason": "The NEPZA letter names another enterprise. Please upload a corrected letter." },
+    { "trackingNumber": "SAMPLE-0015", "ownerId": "c3d6c220-a1d6-4052-a535-649e544d3c3a", "shipment": "lekki-air-controls", "status": "completed", "daysAgo": 75, "reason": null },
+    { "trackingNumber": "SAMPLE-0016", "ownerId": "1c7d981d-3ac8-4c35-9206-9ba61ff1e564", "shipment": "insignia-sea-paper", "status": "completed", "daysAgo": 86, "reason": null }
+  ]
+}

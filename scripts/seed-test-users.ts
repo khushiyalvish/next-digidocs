@@ -5,38 +5,20 @@
  *
  *   npm run test-users:seed
  *
- * Then create the same people in OnePortal, from the hub's folder:
+ * The file holds the suite's test team (@edgeaxis.in) and DigiDocs's own extras (@oneportal.test),
+ * so the installation's TEST_USER_EMAIL_DOMAINS must list both. `npm run db:seed` runs this and then
+ * the sample data. In OnePortal, the hub's `npm run db:seed` creates the team; DigiDocs's extras,
+ * from the hub's folder:
  *   npm run test-users:seed -- --file <this repository>/database/seed/test-users.json --app <App ID>
  */
-import { readFileSync } from "node:fs";
+import { getConfig } from "@/lib/config";
 import { withTransaction } from "@/lib/db";
-import { testUsersFileSchema } from "@/lib/test-users";
-import { appTestUserSchema } from "@/features/auth/schemas";
-import { saveTestUser } from "@/features/auth/link-user";
-import { findOrganisationIdByShortCode } from "@/features/organisations/queries";
-import { setUserAccess } from "@/features/users/writes";
+import { seedTestUsers } from "@/features/auth/test-user-seed";
 
 async function main() {
-  const file = testUsersFileSchema(appTestUserSchema).parse(
-    JSON.parse(readFileSync("database/seed/test-users.json", "utf8")),
-  );
-
   // One transaction: a file that cannot be applied changes nothing.
-  await withTransaction(async (tx) => {
-    for (const user of file.users) {
-      const accountId = await saveTestUser(tx, user);
-      if (!accountId) throw new Error(`${user.email}: its id belongs to a real person here.`);
-
-      const organisationId = user.organisationShortCode
-        ? await findOrganisationIdByShortCode(tx, user.organisationShortCode)
-        : null;
-      if (user.organisationShortCode && !organisationId) {
-        throw new Error(`${user.email}: no single organisation has the short code ${user.organisationShortCode}.`);
-      }
-      await setUserAccess(tx, accountId, { role: user.role, organisationId, mobileNumber: null, isActive: true });
-    }
-  });
-  console.log(`\n${file.users.length} test users are ready in DigiDocs.\n`);
+  const people = await withTransaction((tx) => seedTestUsers(tx, getConfig().testUserEmailDomains));
+  console.log(`\n${people.length} test users are ready in DigiDocs.\n`);
 }
 
 main()

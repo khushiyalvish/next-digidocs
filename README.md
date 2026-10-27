@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DigiDocs
 
-## Getting Started
+The Lagos Free Zone's customs import/export workflow, as an application in the OnePortal suite
+(suite kit v8). People open it from the OnePortal launcher and arrive signed in; it has no login
+page and no passwords. Rebuilt module by module from the old ASP.NET MVC DigiDocs.
 
-First, run the development server:
+Start with [docs/CODEBASE-GUIDE.md](docs/CODEBASE-GUIDE.md) (where things live, how to run it),
+then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+
+## Running it on a development machine
+
+1. Create the database once (`database/setup/create_database.sql`, see
+   [database/README.md](database/README.md)).
+2. `.env.local` from `.env.example`: connection string, the App ID and secret from OnePortal
+   (Administration → Applications), `PORT=3008` with `APP_URL=http://localhost:3008`.
+3. `npm ci`, then `npm run db:migrate`.
+4. **F5** in VS Code, or `npm run dev`. Open DigiDocs from the OnePortal launcher.
+
+Checks: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run test:ui`.
+
+## Database commands (the same in every suite application)
+
+| Command | What it does | Where |
+|---|---|---|
+| `npm run db:migrate` | Applies the migrations this database has not recorded, in order (`-- --status` only lists them) | Everywhere, before starting a new build |
+| `npm run db:seed` | The test users, then 16 sample imports. Needs `ALLOW_SAMPLE_DATA=true` and `TEST_USER_EMAIL_DOMAINS="oneportal.test,edgeaxis.in"` | Test installations only |
+| `npm run test-users:seed` | Only the test users | Test installations only |
+| `npm run data:clear` | Empties chosen parts of the database (needs `ALLOW_DATA_CLEAR=true` and `--confirm DigiDocsOPNext`) | Test installations only |
+| `npm run admin:grant -- --email <address>` | Makes someone who has opened DigiDocs an LFZ Admin (the first one) | Everywhere |
+
+## On a server (PM2)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install -g pm2      # once per server
+npm ci
+npm run db:migrate
+npm run pm2:start       # build, then start (process "digidocs", port from .env.local)
+npm run pm2:reload      # after each deploy: build, then reload without downtime
+npm run pm2:logs        # pm2:status, pm2:stop, pm2:delete
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

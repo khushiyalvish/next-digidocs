@@ -14,7 +14,7 @@ change something, and how to run it.
 
 ## 1. The project in one paragraph
 
-DigiDocs is an application in the OnePortal suite (organisation: EdgeAxis), on suite kit v7.
+DigiDocs is an application in the OnePortal suite (organisation: EdgeAxis), on suite kit v8.
 People open it from the OnePortal launcher, in the same tab, and arrive already signed in:
 DigiDocs never sees a password and has no "Sign out" — "Back to OnePortal" ends its session and
 returns to the hub. It keeps its own users (linked to the hub by the hub's permanent id) and its
@@ -38,10 +38,13 @@ database/
   migrations/0006_fix_special_characters.sql  repairs 21 values 0004-0005 stored garbled
   migrations/0007_imports_exports.sql  imports, exports (separate; each held to its own transaction direction): the list columns and workflow status
   maintenance/purge_expired.sql
-  seed/test-users.json         the seven test users: one per role, two enterprises, one waiting (hub guide §5.8)
+  seed/test-users.json         the test users: the suite's test team + 3 extras; every role, two enterprises, one waiting (hub guide §5.8)
+  seed/sample-data.json        16 sample imports (SAMPLE-0001…): every status, both enterprises (hub guide §5.10)
   README.md                    how to run them
 scripts/
-  seed-test-users.ts           npm run test-users:seed
+  migrate.ts                   npm run db:migrate — kit
+  seed.ts                      npm run db:seed (test users, then sample data)
+  seed-test-users.ts           npm run test-users:seed (test users only)
   clear-data.ts                npm run data:clear
   grant-admin.ts               npm run admin:grant (the first LFZ Admin)
 src/
@@ -62,6 +65,8 @@ src/
     auth/oneportal.ts          the only file that talks to the hub
     auth/link-user.ts          findOrCreateUser, saveTestUser (only writer of user_accounts)
     auth/schemas.ts            what DigiDocs knows about a test user (role, organisation short code)
+    auth/test-user-seed.ts     seedTestUsers: the one code both seeds run
+    sample-data/               the sample data's schema (schemas.ts) and seed (seed.ts)
     access/roles.ts            the five roles (fixed list)
     users/                     role, organisation, mobile, active (writer of those columns)
     organisations/             the enterprises
@@ -74,9 +79,9 @@ src/
   themes/                      classic, lagos, … — kit
   components/ui, forms, shell, local-time.tsx, copy-field.tsx — kit (ui/charts.tsx: the graphs)
   lib/                         config (adapted), db, result, schemas, urls, tokens, sql-text,
-                               request-info, test-users, data-clear — kit
+                               request-info, test-users, data-clear, migrate — kit
 tests/
-  unit/                        themes, charts, sql-names (+ keywords) — kit; test-users — DigiDocs
+  unit/                        themes, charts, sql-names (+ keywords), migrate — kit; test-users, sample-data — DigiDocs
   ui/responsive.spec.ts        every page at 7 widths — kit (adapted)
 ```
 
@@ -100,7 +105,8 @@ tests/
 | A reference list (HSE codes, ports, currencies…) | a new migration — they are fixed data; the old values came from the dump with `legacy_id` |
 | Add a feature | `src/features/<feature>/` — `schemas.ts`, `queries.ts`, `actions.ts`, a writer (ARCHITECTURE.md §2) |
 | Add a table or column | a new `database/migrations/000N_….sql` (never edit an applied one); `npm test` checks the names; give the table a part in `src/features/maintenance/clear-parts.ts` |
-| Add a role, supervisor or department | the column/table (migration), `src/features/auth/schemas.ts` (test-user schema), a test user for it in `database/seed/test-users.json`, its write in `saveTestUser` — in one change |
+| Add a role, supervisor or department | the column/table (migration), `src/features/auth/schemas.ts` (test-user schema), a test user for it in `database/seed/test-users.json`, its write in `saveTestUser` / `seedTestUsers` — in one change |
+| Sample data (what `npm run db:seed` loads) | `database/seed/sample-data.json`, its schema `src/features/sample-data/schemas.ts`, the seed `src/features/sample-data/seed.ts` (through the features' writers); a new table people work in gets sample records in the same change (hub guide §5.10) |
 | Sign-in behaviour | `src/app/sso/*/route.ts`, `src/features/auth/oneportal.ts` — read the hub guide §4–§6 and AUDIT.md first |
 | Session lifetime | `SESSION_TTL_HOURS` in `.env.local` |
 | Wording of the signed-out frame / sign-in error | `src/app/sso/layout.tsx`, `src/app/sso/error/page.tsx` |
@@ -120,7 +126,8 @@ tests/
 
 ## 5. Running it
 
-1. Apply the migrations to `DigiDocsOPNext` (`database/README.md`).
+1. Apply the migrations to `DigiDocsOPNext`: `npm run db:migrate` (`-- --status` lists them first;
+   `database/README.md`). Run by the owner, never by Claude Code.
 2. Register DigiDocs in OnePortal (Administration → Applications → Register application) with
    callback `http://localhost:3008/sso/callback`; give yourself access.
 3. `.env.local` from `.env.example`: connection string, App ID and secret. `PORT=3008` and
@@ -136,15 +143,35 @@ Checks: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, then `
 
 ### A test installation
 
+The database commands are run by a person (never by the application, never by Claude Code), and
+the seeds only on a test installation:
+
 ```bash
-npm run test-users:seed      # here: the seven digidocs.*@oneportal.test people, with their roles
+# .env.local here (and the hub's, same domains):
+#   TEST_USER_EMAIL_DOMAINS="oneportal.test,edgeaxis.in"
+#   ALLOW_SAMPLE_DATA=true
+npm run db:migrate
+npm run db:seed              # the test team + 3 extras with their roles, then 16 sample imports
 # then in the OnePortal folder, with TEST_USER_PASSWORD set in its .env.local:
-npm run test-users:seed -- --file D:/Khushiyal/next-digidocs/database/seed/test-users.json --app <App ID>
+npm run db:seed              # the team, with access to DigiDocs
+npm run test-users:seed -- --file <this repository>/database/seed/test-users.json --app <App ID>
+                             # DigiDocs's extras (NIS, Account, waiting)
 ```
 
+| Who | Role here | For |
+|---|---|---|
+| Sameer Bidi (`sameer.bidi@edgeaxis.in`) | LFZ Admin | reviews imports, manages organisations and users |
+| Shaheem Shaikh (`shaheem.shaikh@edgeaxis.in`) | NEPZA User | approves or rejects after LFZ |
+| Ismail Chaudhary (`ismail.chaudhary@edgeaxis.in`) | Enterprise User, Lekki Port (LPLELTD) | his organisation's imports |
+| Khushiyal Vishwakarma (`khushiyal.vishwakarma@edgeaxis.in`) | Enterprise User, Insignia (INS) | a second organisation: scoping |
+| Nnamdi NIS (`digidocs.nis@oneportal.test`) | NIS User | extra |
+| Amaka Account (`digidocs.account@oneportal.test`) | Account | extra |
+| Wale Waiting (`digidocs.waiting@oneportal.test`) | no role | "waiting for access" |
+
 To start over: `ALLOW_DATA_CLEAR=true` in `.env.local`, then `npm run data:clear` (lists the parts:
-`test-users`, `people`, `sessions`, `audit`), `-- --clear <parts>` (counts), `-- --clear <parts> --confirm
-DigiDocsOPNext` (deletes). Never on an installation real people use.
+`sample-data`, `imports-exports`, `test-users`, `people`, `sessions`, `audit`), `-- --clear <parts>`
+(counts), `-- --clear <parts> --confirm DigiDocsOPNext` (deletes), then `npm run db:seed`. Never on
+an installation real people use.
 
 ### Deploying (PM2)
 
@@ -174,7 +201,10 @@ is in `logs/digidocs.err.log`.
 | Hub says the application is not available / not responding | No access in the hub, app inactive, wrong App ID — or DigiDocs is not running | Hub administrator grants access; start DigiDocs |
 | Error page with a reference number on `/` | Database unreachable or migration not applied | Server log; `database/README.md` |
 | Theme does not follow the hub | The theme is taken at sign-in | Open DigiDocs from the launcher again |
-| `test-users:seed` says "its id belongs to a real person here" | A real account already has that hub id | Do not change the real row; check the file |
+| `test-users:seed` / `db:seed` says "its id belongs to a real person here" | An account with that hub id has an address outside `TEST_USER_EMAIL_DOMAINS` | Add `edgeaxis.in` to `TEST_USER_EMAIL_DOMAINS` on a test installation; never change a real row |
+| A seed says "Use an address ending in @oneportal.test" | `TEST_USER_EMAIL_DOMAINS` does not list the team's domain | `TEST_USER_EMAIL_DOMAINS="oneportal.test,edgeaxis.in"` in `.env.local` (test installations only) |
+| `db:seed` says "ALLOW_SAMPLE_DATA is not true" | Not a test installation, or the setting is missing | `ALLOW_SAMPLE_DATA=true` in `.env.local`, test installations only |
+| `db:migrate` says the login may not change the schema | The app's own login has data rights only | `MIGRATION_DATABASE_CONNECTION_STRING` = an owner account |
 | "Waiting for access" after signing in | No role yet, or their organisation is deactivated | An LFZ Admin assigns a role (Administration → Users); the first one via `npm run admin:grant` |
 | `admin:grant` says no single account has the email | They never opened DigiDocs, or two accounts share the email | Open DigiDocs once from OnePortal; for duplicates, fix the email in OnePortal |
 | `typecheck` names a page that no longer exists | Stale route types in `.next/` | Delete `.next/` and run it again |
